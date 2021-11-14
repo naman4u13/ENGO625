@@ -41,7 +41,7 @@ public class MainApp {
 			HashMap<String, ArrayList<double[]>> EnuMap = new HashMap<String, ArrayList<double[]>>();
 			HashMap<String, ArrayList<ErrParam>> CxMap = new HashMap<String, ArrayList<ErrParam>>();
 			ArrayList<Integer> timeList = new ArrayList<Integer>();
-			int opt = 4;
+			int opt = 2;
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
 				FileWriter file = new FileWriter(
