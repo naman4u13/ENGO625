@@ -14,8 +14,9 @@ import java.util.stream.IntStream;
 import org.json.JSONObject;
 
 import com.ENGO625.estimation.LinearLeastSquare;
-import com.ENGO625.models.ErrParam;
+import com.ENGO625.models.CxParam;
 import com.ENGO625.models.Observation;
+import com.ENGO625.models.SatResidual;
 import com.ENGO625.models.Satellite;
 import com.ENGO625.util.ComputeEleAzm;
 import com.ENGO625.util.GraphPlotter;
@@ -39,9 +40,11 @@ public class MainApp {
 			HashMap<Integer, ArrayList<Observation>> remoteMap = Parser.getList("RemoteL1L2.obs", Observation.class);
 			// Map based variable to store enu errors for each algorithm
 			HashMap<String, ArrayList<double[]>> EnuMap = new HashMap<String, ArrayList<double[]>>();
-			HashMap<String, ArrayList<ErrParam>> CxMap = new HashMap<String, ArrayList<ErrParam>>();
+			HashMap<String, ArrayList<CxParam>> CxMap = new HashMap<String, ArrayList<CxParam>>();
+			ArrayList<Integer> satCountList = new ArrayList<Integer>();
+			HashMap<String, HashMap<Integer, ArrayList<SatResidual>>> satResMap = new HashMap<String, HashMap<Integer, ArrayList<SatResidual>>>();
 			ArrayList<Integer> timeList = new ArrayList<Integer>();
-			int opt = 2;
+			int opt = 3;
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
 				FileWriter file = new FileWriter(
@@ -55,9 +58,10 @@ public class MainApp {
 			remoteOrdMap.putAll(remoteMap);
 			double[] remoteEcef = trueEcef.get("Remote");
 			double[] baseEcef = trueEcef.get("Base");
+			int t0 = remoteOrdMap.firstKey();
 			for (Map.Entry ele : remoteOrdMap.entrySet()) {
 				int t = (int) ele.getKey();
-				timeList.add(t);
+				timeList.add(t - t0);
 				HashMap<Integer, Satellite> subSatMap = satMap.get(t);
 				ArrayList<Observation> obsList = (ArrayList<Observation>) ele.getValue();
 				ArrayList<Observation> invalid = new ArrayList<Observation>();
@@ -68,41 +72,55 @@ public class MainApp {
 						continue;
 					}
 					Satellite sat = subSatMap.get(prn);
-
 					obs.setEcef(sat.getEcef());
 					obs.setVel(sat.getVel());
 				}
 				obsList.removeAll(invalid);
+				int n = obsList.size();
+				satCountList.add(n);
 				switch (opt) {
 
 				case 2, 3, 4:
+
 					LinearLeastSquare lls = new LinearLeastSquare();
 					double[] ecef = lls.process(obsList, false);
+					for (int i = 0; i < n; i++) {
+						double[] elevAzm = ComputeEleAzm.computeEleAzm(ecef, obsList.get(i).getEcef());
+						obsList.get(i).setElevAzmAngle(elevAzm);
+					}
 					if (opt == 2 || opt == 4) {
 						EnuMap.computeIfAbsent("LS", k -> new ArrayList<double[]>()).add(estimateENU(ecef, remoteEcef));
-						ErrParam Cx = lls.getCxParam();
-						CxMap.computeIfAbsent("LS", k -> new ArrayList<ErrParam>()).add(Cx);
-
+						CxParam Cx = lls.getCxParam();
+						CxMap.computeIfAbsent("LS", k -> new ArrayList<CxParam>()).add(Cx);
+						double[] residual = lls.getResidual();
+						satResMap.computeIfAbsent("LS", k -> new HashMap<Integer, ArrayList<SatResidual>>());
+						for (int i = 0; i < n; i++) {
+							Observation obs = obsList.get(i);
+							satResMap.get("LS").computeIfAbsent(obs.getPrn(), k -> new ArrayList<SatResidual>())
+									.add(new SatResidual(t - t0, obs.getElevAngle(), residual[i]));
+						}
 					}
 					if (opt == 3 || opt == 4) {
-						for (int i = 0; i < obsList.size(); i++) {
-							double[] elevAzm = ComputeEleAzm.computeEleAzm(ecef, obsList.get(i).getEcef());
-							obsList.get(i).setElevAzmAngle(elevAzm);
-						}
+
 						lls = new LinearLeastSquare();
 						ecef = lls.process(obsList, true);
 						EnuMap.computeIfAbsent("WLS", k -> new ArrayList<double[]>())
 								.add(estimateENU(ecef, remoteEcef));
-						ErrParam Cx = lls.getCxParam();
-						CxMap.computeIfAbsent("WLS", k -> new ArrayList<ErrParam>()).add(Cx);
+						CxParam Cx = lls.getCxParam();
+						CxMap.computeIfAbsent("WLS", k -> new ArrayList<CxParam>()).add(Cx);
+						double[] residual = lls.getResidual();
+						satResMap.computeIfAbsent("WLS", k -> new HashMap<Integer, ArrayList<SatResidual>>());
+						for (int i = 0; i < n; i++) {
+							Observation obs = obsList.get(i);
+							satResMap.get("WLS").computeIfAbsent(obs.getPrn(), k -> new ArrayList<SatResidual>())
+									.add(new SatResidual(t - t0, obs.getElevAngle(), residual[i]));
+						}
 
 					}
 					break;
 				}
 			}
 
-			int t0 = timeList.get(0);
-			timeList.replaceAll(t -> t - t0);
 			// Calculate Accuracy Metrics
 			HashMap<String, ArrayList<double[]>> GraphEnuMap = new HashMap<String, ArrayList<double[]>>();
 			for (String key : EnuMap.keySet()) {
@@ -152,8 +170,9 @@ public class MainApp {
 			}
 
 			// Plot Error Graphs
-			GraphPlotter.graphENU(GraphEnuMap, timeList);
-			GraphPlotter.graphDOP(CxMap, timeList);
+			// GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			// GraphPlotter.graphDOP(CxMap, satCountList, timeList);
+			GraphPlotter.graphSatRes(satResMap);
 
 		} catch (Exception e) {
 			// TODO Auto-generated catch block

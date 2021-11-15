@@ -1,12 +1,12 @@
 package com.ENGO625.models;
 
-public class ErrParam {
+public class CxParam {
 
 	private double varUERE;
 	// Diagonal elements of DOP matrix
 	private double[] dopDiag;
 
-	public ErrParam(double varUERE, double[] dopDiag) {
+	public CxParam(double varUERE, double[] dopDiag) {
 		super();
 		this.varUERE = varUERE;
 		this.dopDiag = dopDiag;

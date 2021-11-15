@@ -5,7 +5,7 @@ import java.util.stream.IntStream;
 
 import org.ejml.simple.SimpleMatrix;
 
-import com.ENGO625.models.ErrParam;
+import com.ENGO625.models.CxParam;
 import com.ENGO625.models.Observation;
 import com.ENGO625.util.LatLonUtil;
 
@@ -14,6 +14,7 @@ public class LinearLeastSquare {
 	private SimpleMatrix HtWHinv = null;
 	private double sigmaUERE = 1;
 	private double[] estEcefClk;
+	private double[] residual;
 
 	public double[] process(ArrayList<Observation> obsList, boolean isWLS) throws Exception {
 
@@ -85,6 +86,7 @@ public class LinearLeastSquare {
 
 			}
 			double[][] res = new double[n][1];
+			residual = new double[n];
 			for (int i = 0; i < n; i++) {
 				Observation obs = obsList.get(i);
 				double PR = obs.getPseduorange();
@@ -93,11 +95,12 @@ public class LinearLeastSquare {
 								.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble())
 						+ (SpeedofLight * estEcefClk[3]);
 				res[i][0] = PR_hat - PR;
+				residual[i] = res[i][0];
 				System.out.print("");
 			}
 			SimpleMatrix W = new SimpleMatrix(weight);
 			SimpleMatrix R = new SimpleMatrix(res);
-			double estVarFact = R.transpose().mult(W).mult(R).get(0) / (n - 4);
+			double estVarFact = (R.transpose().mult(W).mult(R).get(0)) / (n - 4);
 			/*
 			 * Regression is completed, error is below threshold, successfully estimated Rx
 			 * Position and Clk Offset
@@ -109,12 +112,12 @@ public class LinearLeastSquare {
 
 	}
 
-	public ErrParam getCxParam() {
+	public CxParam getCxParam() {
 		SimpleMatrix R = getR(estEcefClk);
 		SimpleMatrix dopEnu = R.mult(HtWHinv.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
 		double[] dopDiag = IntStream.range(0, 3).mapToDouble(i -> dopEnu.get(i, i)).toArray();
 
-		return new ErrParam(Math.pow(sigmaUERE, 2), dopDiag);
+		return new CxParam(Math.pow(sigmaUERE, 2), dopDiag);
 	}
 
 	private SimpleMatrix getR(double[] ecef) {
@@ -126,6 +129,10 @@ public class LinearLeastSquare {
 				{ Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat) } };
 		SimpleMatrix R = new SimpleMatrix(r);
 		return R;
+	}
+
+	public double[] getResidual() {
+		return residual;
 	}
 
 }

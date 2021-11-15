@@ -8,10 +8,10 @@
 	<properties>
 		<maven.compiler.target>14</maven.compiler.target>
 		<maven.compiler.source>14</maven.compiler.source>
-		
+
 	</properties>
-	
-	
+
+
 	<dependencies>
 		<dependency>
 			<groupId>org.ejml</groupId>
@@ -32,12 +32,13 @@
 			<version>1.0.16</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.json/json -->
-<dependency>
-    <groupId>org.json</groupId>
-    <artifactId>json</artifactId>
-    <version>20210307</version>
-</dependency>
-
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>20210307</version>
+		</dependency>
 		
+
+
 	</dependencies>
 </project>
