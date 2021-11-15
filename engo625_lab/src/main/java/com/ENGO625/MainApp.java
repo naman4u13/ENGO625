@@ -43,8 +43,9 @@ public class MainApp {
 			HashMap<String, ArrayList<CxParam>> CxMap = new HashMap<String, ArrayList<CxParam>>();
 			ArrayList<Integer> satCountList = new ArrayList<Integer>();
 			HashMap<String, HashMap<Integer, ArrayList<SatResidual>>> satResMap = new HashMap<String, HashMap<Integer, ArrayList<SatResidual>>>();
+			HashMap<Integer, ArrayList<Observation>> satDataMap = new HashMap<Integer, ArrayList<Observation>>();
 			ArrayList<Integer> timeList = new ArrayList<Integer>();
-			int opt = 3;
+			int opt = 2;
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
 				FileWriter file = new FileWriter(
@@ -74,6 +75,7 @@ public class MainApp {
 					Satellite sat = subSatMap.get(prn);
 					obs.setEcef(sat.getEcef());
 					obs.setVel(sat.getVel());
+					satDataMap.computeIfAbsent(prn, k -> new ArrayList<Observation>()).add(obs);
 				}
 				obsList.removeAll(invalid);
 				int n = obsList.size();
@@ -170,8 +172,9 @@ public class MainApp {
 			}
 
 			// Plot Error Graphs
-			// GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
-			// GraphPlotter.graphDOP(CxMap, satCountList, timeList);
+			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			GraphPlotter.graphSatData(satDataMap, t0);
+			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 			GraphPlotter.graphSatRes(satResMap);
 
 		} catch (Exception e) {

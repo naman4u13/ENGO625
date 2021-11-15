@@ -15,6 +15,7 @@ import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.ui.RefineryUtilities;
 
 import com.ENGO625.models.CxParam;
+import com.ENGO625.models.Observation;
 import com.ENGO625.models.SatResidual;
 
 public class GraphPlotter extends ApplicationFrame {
@@ -125,6 +126,28 @@ public class GraphPlotter extends ApplicationFrame {
 
 	}
 
+	public GraphPlotter(int flag, HashMap<Integer, ArrayList<Observation>> satDataMap, int t0) {
+		super("Observed Satellite Data");
+		String title;
+		if (flag == 0) {
+			title = "Doppler";
+		} else if (flag == 1) {
+			title = "Pseudorange";
+		} else {
+			title = "L1 Carrier Phase";
+		}
+		final JFreeChart chart = ChartFactory.createXYLineChart(title, "GPS-time", title,
+				createDatasetSatData(satDataMap, flag, t0));
+		final ChartPanel chartPanel = new ChartPanel(chart);
+		chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
+		chartPanel.setMouseZoomable(true, false);
+		// ChartUtils.saveChartAsJPEG(new File(path + chartTitle + ".jpeg"), chart,
+		// 1000, 600);
+		setContentPane(chartPanel);
+
+		// TODO Auto-generated constructor stub
+	}
+
 	public static void graphENU(HashMap<String, ArrayList<double[]>> EnuMap, HashMap<String, ArrayList<CxParam>> CxMap,
 			ArrayList<Integer> timeList) throws IOException {
 
@@ -206,6 +229,15 @@ public class GraphPlotter extends ApplicationFrame {
 
 	}
 
+	public static void graphSatData(HashMap<Integer, ArrayList<Observation>> satDataMap, int t0) {
+		for (int i = 0; i < 3; i++) {
+			GraphPlotter chart = new GraphPlotter(i, satDataMap, t0);
+			chart.pack();
+			RefineryUtilities.positionFrameRandomly(chart);
+			chart.setVisible(true);
+		}
+	}
+
 	private XYDataset createDatasetENU(HashMap<String, double[][]> dataMap, ArrayList<Integer> timeList) {
 		XYSeriesCollection dataset = new XYSeriesCollection();
 		for (String key : dataMap.keySet()) {
@@ -283,6 +315,36 @@ public class GraphPlotter extends ApplicationFrame {
 				double[] enu = list.get(i);
 				double err = Math.sqrt(Arrays.stream(enu).map(j -> j * j).sum());
 				series.add(timeList.get(i), Double.valueOf(err));
+			}
+			dataset.addSeries(series);
+		}
+
+		return dataset;
+
+	}
+
+	private XYDataset createDatasetSatData(HashMap<Integer, ArrayList<Observation>> dataMap, int flag, int t0) {
+		XYSeriesCollection dataset = new XYSeriesCollection();
+		for (int key : dataMap.keySet()) {
+			final XYSeries series = new XYSeries(key);
+			ArrayList<Observation> list = dataMap.get(key);
+			int prevT = 0;
+			for (int i = 0; i < list.size(); i++) {
+				Observation obs = list.get(i);
+				double data;
+				int t = obs.getT() - t0;
+				if (flag == 0) {
+					data = obs.getDoppler();
+				} else if (flag == 1) {
+					data = obs.getPseduorange();
+				} else {
+					data = obs.getPhaseL2();
+				}
+				if (t - prevT > 1) {
+					series.add(prevT, null);
+				}
+				series.add(t, data);
+				prevT = t;
 			}
 			dataset.addSeries(series);
 		}
