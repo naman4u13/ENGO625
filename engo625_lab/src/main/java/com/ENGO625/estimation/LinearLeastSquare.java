@@ -16,7 +16,7 @@ public class LinearLeastSquare {
 	private double[] estEcefClk;
 	private double[] residual;
 
-	public double[] process(ArrayList<Observation> obsList, boolean isWLS) throws Exception {
+	public double[] processSP(ArrayList<Observation> obsList, boolean isWLS) throws Exception {
 
 		// Satellite count
 		int n = obsList.size();
@@ -105,6 +105,75 @@ public class LinearLeastSquare {
 			 * Regression is completed, error is below threshold, successfully estimated Rx
 			 * Position and Clk Offset
 			 */
+			return estEcefClk;
+		}
+
+		throw new Exception("Satellite count is less than 4, can't compute user position");
+
+	}
+
+	public double[] processBRSD(ArrayList<Observation> baseObsList, ArrayList<Observation> remObsList,
+			double[] trueBaseEcef) throws Exception {
+
+		// Satellite count
+		int n = remObsList.size();
+		// Weight matrix
+		double[][] weight = new double[n][n];
+		IntStream.range(0, n).forEach(i -> weight[i][i] = 1);
+		// variable to store estimated Rx position and clk offset
+		estEcefClk = new double[4];
+		/*
+		 * Error variable based on norm value deltaX vector, intially assigned a big
+		 * value
+		 */
+		double error = Double.MAX_VALUE;
+		// Threshold to stop iteration or regression
+		double threshold = 1e-3;
+		// Minimum 4 satellite are required to proceed
+		if (n >= 4) {
+
+			while (error >= threshold) {
+
+				// Misclosure vector
+				double[][] deltaPR = new double[n][1];
+				// Jacobian or Design Matrix
+				double[][] h = new double[n][4];
+				// Iterate through each satellite, to compute LOS vector and Approx pseudorange
+				for (int i = 0; i < n; i++) {
+
+					Observation remObs = remObsList.get(i);
+					Observation baseObs = baseObsList.get(i);
+					double[] satECEF = remObs.getEcef();
+					double remPR = remObs.getPseduorange();
+					double basePR = baseObs.getPseduorange();
+					// Approx Remote Geometric Range
+					double remGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
+							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
+					// Base Geometric Range
+					double baseGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - trueBaseEcef[j])
+							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
+
+					deltaPR[i][0] = remPR - basePR - (remGR + (SpeedofLight * estEcefClk[3]) - baseGR);
+					int index = i;
+					IntStream.range(0, 3).forEach(j -> h[index][j] = -(satECEF[j] - estEcefClk[j]) / remGR);
+					h[i][3] = 1;
+				}
+				// Least Squares implementation
+				SimpleMatrix H = new SimpleMatrix(h);
+				SimpleMatrix Ht = H.transpose();
+				SimpleMatrix W = new SimpleMatrix(weight);
+				HtWHinv = (Ht.mult(W).mult(H)).invert();
+				SimpleMatrix DeltaPR = new SimpleMatrix(deltaPR);
+				SimpleMatrix DeltaX = HtWHinv.mult(Ht).mult(W).mult(DeltaPR);
+				// updating Rx state vector, by adding deltaX vector
+				IntStream.range(0, 3).forEach(i -> estEcefClk[i] = estEcefClk[i] + DeltaX.get(i, 0));
+				estEcefClk[3] += DeltaX.get(3, 0) / SpeedofLight;
+				// Recomputing error - norm of deltaX vector
+				error = Math.sqrt(IntStream.range(0, 3).mapToDouble(i -> Math.pow(DeltaX.get(i, 0), 2)).reduce(0,
+						(i, j) -> i + j));
+
+			}
+
 			return estEcefClk;
 		}
 

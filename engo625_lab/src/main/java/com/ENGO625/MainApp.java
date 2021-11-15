@@ -45,7 +45,7 @@ public class MainApp {
 			HashMap<String, HashMap<Integer, ArrayList<SatResidual>>> satResMap = new HashMap<String, HashMap<Integer, ArrayList<SatResidual>>>();
 			HashMap<Integer, ArrayList<Observation>> satDataMap = new HashMap<Integer, ArrayList<Observation>>();
 			ArrayList<Integer> timeList = new ArrayList<Integer>();
-			int opt = 2;
+			int opt = 4;
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
 				FileWriter file = new FileWriter(
@@ -64,9 +64,10 @@ public class MainApp {
 				int t = (int) ele.getKey();
 				timeList.add(t - t0);
 				HashMap<Integer, Satellite> subSatMap = satMap.get(t);
-				ArrayList<Observation> obsList = (ArrayList<Observation>) ele.getValue();
+				ArrayList<Observation> remObsList = (ArrayList<Observation>) ele.getValue();
+				ArrayList<Observation> baseObsList = null;
 				ArrayList<Observation> invalid = new ArrayList<Observation>();
-				for (Observation obs : obsList) {
+				for (Observation obs : remObsList) {
 					int prn = obs.getPrn();
 					if (!subSatMap.containsKey(prn)) {
 						invalid.add(obs);
@@ -77,18 +78,22 @@ public class MainApp {
 					obs.setVel(sat.getVel());
 					satDataMap.computeIfAbsent(prn, k -> new ArrayList<Observation>()).add(obs);
 				}
-				obsList.removeAll(invalid);
-				int n = obsList.size();
+				remObsList.removeAll(invalid);
+				int n = remObsList.size();
+				if (opt == 4 || opt == 5) {
+					baseObsList = baseMap.get(t);
+					baseObsList = modifyObsList(remObsList, baseObsList);
+				}
 				satCountList.add(n);
 				switch (opt) {
 
-				case 2, 3, 4:
+				case 2, 3, 4, 5:
 
 					LinearLeastSquare lls = new LinearLeastSquare();
-					double[] ecef = lls.process(obsList, false);
+					double[] ecef = lls.processSP(remObsList, false);
 					for (int i = 0; i < n; i++) {
-						double[] elevAzm = ComputeEleAzm.computeEleAzm(ecef, obsList.get(i).getEcef());
-						obsList.get(i).setElevAzmAngle(elevAzm);
+						double[] elevAzm = ComputeEleAzm.computeEleAzm(ecef, remObsList.get(i).getEcef());
+						remObsList.get(i).setElevAzmAngle(elevAzm);
 					}
 					if (opt == 2 || opt == 4) {
 						EnuMap.computeIfAbsent("LS", k -> new ArrayList<double[]>()).add(estimateENU(ecef, remoteEcef));
@@ -97,7 +102,7 @@ public class MainApp {
 						double[] residual = lls.getResidual();
 						satResMap.computeIfAbsent("LS", k -> new HashMap<Integer, ArrayList<SatResidual>>());
 						for (int i = 0; i < n; i++) {
-							Observation obs = obsList.get(i);
+							Observation obs = remObsList.get(i);
 							satResMap.get("LS").computeIfAbsent(obs.getPrn(), k -> new ArrayList<SatResidual>())
 									.add(new SatResidual(t - t0, obs.getElevAngle(), residual[i]));
 						}
@@ -105,7 +110,7 @@ public class MainApp {
 					if (opt == 3 || opt == 4) {
 
 						lls = new LinearLeastSquare();
-						ecef = lls.process(obsList, true);
+						ecef = lls.processSP(remObsList, true);
 						EnuMap.computeIfAbsent("WLS", k -> new ArrayList<double[]>())
 								.add(estimateENU(ecef, remoteEcef));
 						CxParam Cx = lls.getCxParam();
@@ -113,13 +118,23 @@ public class MainApp {
 						double[] residual = lls.getResidual();
 						satResMap.computeIfAbsent("WLS", k -> new HashMap<Integer, ArrayList<SatResidual>>());
 						for (int i = 0; i < n; i++) {
-							Observation obs = obsList.get(i);
+							Observation obs = remObsList.get(i);
 							satResMap.get("WLS").computeIfAbsent(obs.getPrn(), k -> new ArrayList<SatResidual>())
 									.add(new SatResidual(t - t0, obs.getElevAngle(), residual[i]));
+						}
+						if (opt == 4 || opt == 5) {
+							lls = new LinearLeastSquare();
+							ecef = lls.processBRSD(baseObsList, remObsList, baseEcef);
+							EnuMap.computeIfAbsent("BRSD LS", k -> new ArrayList<double[]>())
+									.add(estimateENU(ecef, remoteEcef));
+							Cx = lls.getCxParam();
+							CxMap.computeIfAbsent("BRSD LS", k -> new ArrayList<CxParam>()).add(Cx);
+							break;
 						}
 
 					}
 					break;
+
 				}
 			}
 
@@ -173,15 +188,31 @@ public class MainApp {
 
 			// Plot Error Graphs
 			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
-			GraphPlotter.graphSatData(satDataMap, t0);
-			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
-			GraphPlotter.graphSatRes(satResMap);
+//			GraphPlotter.graphSatData(satDataMap, t0);
+//			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
+//			GraphPlotter.graphSatRes(satResMap);
 
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
+	}
+
+	public static ArrayList<Observation> modifyObsList(ArrayList<Observation> remObsList,
+			ArrayList<Observation> baseObsList) {
+		ArrayList<Observation> newBaseObsList = new ArrayList<Observation>();
+		HashMap<Integer, Integer> order = new HashMap<Integer, Integer>();
+		for (int i = 0; i < baseObsList.size(); i++) {
+			Observation obs = baseObsList.get(i);
+			order.put(obs.getPrn(), i);
+		}
+		for (int i = 0; i < remObsList.size(); i++) {
+			Observation obs = remObsList.get(i);
+			int prn = obs.getPrn();
+			newBaseObsList.add(baseObsList.get(order.get(prn)));
+		}
+		return newBaseObsList;
 	}
 
 	// Transform from ECEF to ENU
