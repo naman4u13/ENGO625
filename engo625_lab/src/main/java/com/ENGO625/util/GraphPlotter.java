@@ -19,6 +19,9 @@ import com.ENGO625.models.Observation;
 import com.ENGO625.models.SatResidual;
 
 public class GraphPlotter extends ApplicationFrame {
+	private static final double freqL1 = 1575.42e6;
+	private final static double SpeedofLight = 299792458;
+
 	public GraphPlotter(String applicationTitle, String chartTitle, HashMap<String, ArrayList<double[]>> dataMap,
 			ArrayList<Integer> timeList) throws IOException {
 		super(applicationTitle);
@@ -39,11 +42,11 @@ public class GraphPlotter extends ApplicationFrame {
 		super("Satellite-Residual");
 		JFreeChart chart;
 		if (flag) {
-			chart = ChartFactory.createXYLineChart("Satellite-Residual", "GPS-time", "Satellite-Residual",
+			chart = ChartFactory.createXYLineChart("Satellite-Residual", "GPS-time", "Satellite-Residual(in m)",
 					createDatasetSatRes(satResMap, flag));
 		} else {
-			chart = ChartFactory.createScatterPlot("Satellite-Residual vs Elevation Angle", "Elevation-Angle",
-					"Satellite-Residual", createDatasetSatRes(satResMap, flag));
+			chart = ChartFactory.createScatterPlot("Satellite-Residual vs Elevation Angle",
+					"Elevation-Angle(in degrees)", "Satellite-Residual(in m)", createDatasetSatRes(satResMap, flag));
 		}
 		final ChartPanel chartPanel = new ChartPanel(chart);
 		chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
@@ -130,11 +133,11 @@ public class GraphPlotter extends ApplicationFrame {
 		super("Observed Satellite Data");
 		String title;
 		if (flag == 0) {
-			title = "Doppler";
+			title = "Doppler(in Hz)";
 		} else if (flag == 1) {
-			title = "Pseudorange";
+			title = "Pseudorange(in m)";
 		} else {
-			title = "L1 Carrier Phase";
+			title = "L1 Carrier Phase(in L1 Cycles)";
 		}
 		final JFreeChart chart = ChartFactory.createXYLineChart(title, "GPS-time", title,
 				createDatasetSatData(satDataMap, flag, t0));
@@ -172,7 +175,7 @@ public class GraphPlotter extends ApplicationFrame {
 		chart.pack();
 		RefineryUtilities.positionFrameRandomly(chart);
 		chart.setVisible(true);
-		chart = new GraphPlotter("3d-Error", "3d-Error", EnuMap, timeList);
+		chart = new GraphPlotter("3d-Error(in m)", "3d-Error(in m)", EnuMap, timeList);
 		chart.pack();
 		RefineryUtilities.positionFrameRandomly(chart);
 		chart.setVisible(true);
@@ -329,16 +332,26 @@ public class GraphPlotter extends ApplicationFrame {
 			final XYSeries series = new XYSeries(key);
 			ArrayList<Observation> list = dataMap.get(key);
 			int prevT = 0;
-			for (int i = 0; i < list.size(); i++) {
+			for (int i = 1; i < list.size(); i++) {
 				Observation obs = list.get(i);
 				double data;
 				int t = obs.getT() - t0;
+
+				double drDoppler = obs.getDoppler() * (SpeedofLight / freqL1) * (t - prevT);
+				double drPR = list.get(i).getPseduorange() - list.get(i - 1).getPseduorange();
+				double drCP = -(list.get(i).getPhaseL1() - list.get(i - 1).getPhaseL1()) * (SpeedofLight / freqL1);
+				if (Math.abs(drDoppler - drPR) > 1 || Math.abs(drDoppler - drCP) > 1 || Math.abs(drCP - drPR) > 1) {
+					System.out.print("");
+				}
+				if (t > 300) {
+					break;
+				}
 				if (flag == 0) {
 					data = obs.getDoppler();
 				} else if (flag == 1) {
 					data = obs.getPseduorange();
 				} else {
-					data = obs.getPhaseL2();
+					data = obs.getPhaseL1();
 				}
 				if (t - prevT > 1) {
 					series.add(prevT, null);

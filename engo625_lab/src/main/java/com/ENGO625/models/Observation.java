@@ -39,8 +39,9 @@ public class Observation {
 		this.t = (int) data[1];
 		this.pseduorange = data[2];
 		this.phaseL1 = data[3];
-		this.phaseL2 = data[4];
-		this.doppler = data[5];
+		this.doppler = data[4];
+		this.phaseL2 = data[5];
+
 	}
 
 	public int getT() {

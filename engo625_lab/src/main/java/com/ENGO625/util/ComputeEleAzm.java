@@ -7,6 +7,7 @@ import java.util.Arrays;
 
 import org.ejml.simple.SimpleMatrix;
 
+//Reference https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf
 public class ComputeEleAzm {
 	public static double[] computeEleAzm(double[] _userECEF, double[] _satECEF) {
 
@@ -17,7 +18,7 @@ public class ComputeEleAzm {
 		// User lat and lon
 		double lat = userLLA[0] * (Math.PI / 180);
 		double lon = userLLA[1] * (Math.PI / 180);
-		// Reference https://www.ngs.noaa.gov/CORS/Articles/SolerEisemannJSE.pdf
+
 		SimpleMatrix RotationMatrix = new SimpleMatrix(
 				new double[][] { { -sin(lon), cos(lon), 0 }, { -sin(lat) * cos(lon), -sin(lat) * sin(lon), cos(lat) },
 						{ cos(lat) * cos(lon), cos(lat) * sin(lon), sin(lat) } });
@@ -31,7 +32,6 @@ public class ComputeEleAzm {
 		}
 		double AzmAngle = Math.abs(Math.atan(E / N));
 		AzmAngle += E > 0 ? (N < 0 ? Math.PI - (2 * AzmAngle) : 0) : (N < 0 ? -Math.PI : -(2 * AzmAngle));
-
 		return new double[] { ElevAngle, AzmAngle };
 
 	}

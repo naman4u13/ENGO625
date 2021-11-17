@@ -11,11 +11,16 @@ import com.ENGO625.util.LatLonUtil;
 
 public class LinearLeastSquare {
 	private final static double SpeedofLight = 299792458;
+	// Cofactor Matrix used for DOP param computation
 	private SimpleMatrix HtWHinv = null;
+	// UERE Std. Dev
 	private double sigmaUERE = 1;
+	// Estimated Rx Position and Clock estimate
 	private double[] estEcefClk;
+	// Satellite Residuals
 	private double[] residual;
 
+	// Estimation for Single Point Mode
 	public double[] processSP(ArrayList<Observation> obsList, boolean isWLS) throws Exception {
 
 		// Satellite count
@@ -85,7 +90,8 @@ public class LinearLeastSquare {
 						(i, j) -> i + j));
 
 			}
-			double[][] res = new double[n][1];
+
+			// Compute Satellite Residuals
 			residual = new double[n];
 			for (int i = 0; i < n; i++) {
 				Observation obs = obsList.get(i);
@@ -94,13 +100,10 @@ public class LinearLeastSquare {
 						.sqrt(IntStream.range(0, 3).mapToDouble(j -> obs.getEcef()[j] - estEcefClk[j])
 								.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble())
 						+ (SpeedofLight * estEcefClk[3]);
-				res[i][0] = PR_hat - PR;
-				residual[i] = res[i][0];
-				System.out.print("");
+
+				residual[i] = PR_hat - PR;
+
 			}
-			SimpleMatrix W = new SimpleMatrix(weight);
-			SimpleMatrix R = new SimpleMatrix(res);
-			double estVarFact = (R.transpose().mult(W).mult(R).get(0)) / (n - 4);
 			/*
 			 * Regression is completed, error is below threshold, successfully estimated Rx
 			 * Position and Clk Offset
@@ -143,13 +146,18 @@ public class LinearLeastSquare {
 
 					Observation remObs = remObsList.get(i);
 					Observation baseObs = baseObsList.get(i);
+					if (remObs.getPrn() != baseObs.getPrn()) {
+						throw new Exception("Invalid Base and Remote observation list");
+					}
 					double[] satECEF = remObs.getEcef();
+					// Remote Station Pseudorange
 					double remPR = remObs.getPseduorange();
+					// Base Station Pseudorange
 					double basePR = baseObs.getPseduorange();
-					// Approx Remote Geometric Range
+					// Approx Remote Station Geometric Range
 					double remGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
 							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
-					// Base Geometric Range
+					// Base Station Geometric Range
 					double baseGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - trueBaseEcef[j])
 							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
 
@@ -173,6 +181,22 @@ public class LinearLeastSquare {
 						(i, j) -> i + j));
 
 			}
+			// Compute Satellite Residuals
+			residual = new double[n];
+			for (int i = 0; i < n; i++) {
+				Observation remObs = remObsList.get(i);
+				Observation baseObs = baseObsList.get(i);
+				double[] satECEF = remObs.getEcef();
+				double remPR = remObs.getPseduorange();
+				double basePR = baseObs.getPseduorange();
+				// Approx Remote Geometric Range
+				double remGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
+						.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
+				// Base Geometric Range
+				double baseGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - trueBaseEcef[j])
+						.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
+				residual[i] = remPR - basePR - (remGR + (SpeedofLight * estEcefClk[3]) - baseGR);
+			}
 
 			return estEcefClk;
 		}
@@ -181,7 +205,9 @@ public class LinearLeastSquare {
 
 	}
 
+	// Get object containing parametes to compute DOP and Cov(dx)
 	public CxParam getCxParam() {
+		// Get Rotation Matrix to transform from ECEF to ENU frame
 		SimpleMatrix R = getR(estEcefClk);
 		SimpleMatrix dopEnu = R.mult(HtWHinv.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
 		double[] dopDiag = IntStream.range(0, 3).mapToDouble(i -> dopEnu.get(i, i)).toArray();
@@ -189,6 +215,7 @@ public class LinearLeastSquare {
 		return new CxParam(Math.pow(sigmaUERE, 2), dopDiag);
 	}
 
+	// Rotation matrix
 	private SimpleMatrix getR(double[] ecef) {
 		double[] llh = LatLonUtil.ecef2lla(ecef);
 		double lat = Math.toRadians(llh[0]);

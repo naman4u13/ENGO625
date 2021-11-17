@@ -2,8 +2,11 @@ package com.ENGO625.models;
 
 public class SatResidual {
 
+	// GPS Time
 	private int t;
+	// Elevation Angle(Radians)
 	private double elevAngle;
+	// Residual(meter)
 	private double residual;
 
 	public SatResidual(int t, double elevAngle, double residual) {
