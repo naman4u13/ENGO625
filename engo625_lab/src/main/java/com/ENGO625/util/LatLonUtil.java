@@ -73,8 +73,8 @@ public class LatLonUtil {
 		double[] _diff = new double[] { ecef[0] - refEcef[0], ecef[1] - refEcef[1], ecef[2] - refEcef[2] };
 		SimpleMatrix diff = new SimpleMatrix(3, 1, false, _diff);
 		double[] llh = ecef2lla(refEcef);
-		double lat = llh[0];
-		double lon = llh[1];
+		double lat = Math.toRadians(llh[0]);
+		double lon = Math.toRadians(llh[1]);
 		double[][] _R = new double[][] { { -Math.sin(lon), Math.cos(lon), 0 },
 				{ -Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat) },
 				{ Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat) } };

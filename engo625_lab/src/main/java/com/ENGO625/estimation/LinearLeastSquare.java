@@ -115,11 +115,11 @@ public class LinearLeastSquare {
 
 	}
 
-	public double[] processBRSD(ArrayList<Observation> baseObsList, ArrayList<Observation> remObsList,
+	public double[] processBRSD(ArrayList<Observation> baseObsvs, ArrayList<Observation> remObsvs,
 			double[] trueBaseEcef) throws Exception {
 
 		// Satellite count
-		int n = remObsList.size();
+		int n = remObsvs.size();
 		// Weight matrix
 		double[][] weight = new double[n][n];
 		IntStream.range(0, n).forEach(i -> weight[i][i] = 1);
@@ -144,8 +144,8 @@ public class LinearLeastSquare {
 				// Iterate through each satellite, to compute LOS vector and Approx pseudorange
 				for (int i = 0; i < n; i++) {
 
-					Observation remObs = remObsList.get(i);
-					Observation baseObs = baseObsList.get(i);
+					Observation remObs = remObsvs.get(i);
+					Observation baseObs = baseObsvs.get(i);
 					if (remObs.getPrn() != baseObs.getPrn()) {
 						throw new Exception("Invalid Base and Remote observation list");
 					}
@@ -184,8 +184,8 @@ public class LinearLeastSquare {
 			// Compute Satellite Residuals
 			residual = new double[n];
 			for (int i = 0; i < n; i++) {
-				Observation remObs = remObsList.get(i);
-				Observation baseObs = baseObsList.get(i);
+				Observation remObs = remObsvs.get(i);
+				Observation baseObs = baseObsvs.get(i);
 				double[] satECEF = remObs.getEcef();
 				double remPR = remObs.getPseduorange();
 				double basePR = baseObs.getPseduorange();

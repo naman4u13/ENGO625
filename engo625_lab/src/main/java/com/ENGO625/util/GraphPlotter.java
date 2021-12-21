@@ -38,6 +38,21 @@ public class GraphPlotter extends ApplicationFrame {
 
 	}
 
+	public GraphPlotter(int prn, HashMap<Integer, Boolean> dataMap, ArrayList<Integer> timeList) throws IOException {
+		super(prn + " Cycle-Slip Detection");
+		// TODO Auto-generated constructor stub
+
+		final JFreeChart chart = ChartFactory.createXYLineChart(prn + " Is-Phase-Locked", "GPS-time", "Is-Phase-Locked",
+				createCycleSlipDataset(prn, dataMap, timeList));
+		final ChartPanel chartPanel = new ChartPanel(chart);
+		chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
+		chartPanel.setMouseZoomable(true, false);
+		// ChartUtils.saveChartAsJPEG(new File(path + chartTitle + ".jpeg"), chart,
+		// 1000, 600);
+		setContentPane(chartPanel);
+
+	}
+
 	public GraphPlotter(HashMap<String, HashMap<Integer, ArrayList<SatResidual>>> satResMap, boolean flag) {
 		super("Satellite-Residual");
 		JFreeChart chart;
@@ -219,6 +234,30 @@ public class GraphPlotter extends ApplicationFrame {
 
 	}
 
+	public static void graphCycleSlip(ArrayList<ArrayList<Observation>> baseObsList,
+			ArrayList<ArrayList<Observation>> remObsList, ArrayList<Integer> timeList) throws IOException {
+		int n = baseObsList.size();
+		HashMap<Integer, HashMap<Integer, Boolean>> csMap = new HashMap<Integer, HashMap<Integer, Boolean>>();
+		for (int i = 0; i < n; i++) {
+			int t = timeList.get(i);
+			ArrayList<Observation> baseObsvs = baseObsList.get(i);
+			ArrayList<Observation> remObsvs = remObsList.get(i);
+			int m = baseObsvs.size();
+			for (int j = 0; j < m; j++) {
+				int prn = baseObsvs.get(j).getPrn();
+				boolean isPhaseLocked = baseObsvs.get(j).isPhaseLocked() && remObsvs.get(j).isPhaseLocked();
+				csMap.computeIfAbsent(prn, k -> new HashMap<Integer, Boolean>()).put(t, isPhaseLocked);
+			}
+		}
+		for (int prn : csMap.keySet()) {
+			GraphPlotter chart = new GraphPlotter(prn, csMap.get(prn), timeList);
+			chart.pack();
+			RefineryUtilities.positionFrameRandomly(chart);
+			chart.setVisible(true);
+		}
+
+	}
+
 	public static void graphSatRes(HashMap<String, HashMap<Integer, ArrayList<SatResidual>>> satResMap) {
 		GraphPlotter chart = new GraphPlotter(satResMap, true);
 		chart.pack();
@@ -255,8 +294,8 @@ public class GraphPlotter extends ApplicationFrame {
 				nsdSeries.add(timeList.get(i), Double.valueOf(-sd[i]));
 			}
 			dataset.addSeries(errSeries);
-			dataset.addSeries(psdSeries);
-			dataset.addSeries(nsdSeries);
+			// dataset.addSeries(psdSeries);
+			// dataset.addSeries(nsdSeries);
 		}
 
 		return dataset;
@@ -305,6 +344,22 @@ public class GraphPlotter extends ApplicationFrame {
 			dataset.addSeries(series);
 		}
 
+		return dataset;
+
+	}
+
+	private XYDataset createCycleSlipDataset(int prn, HashMap<Integer, Boolean> dataMap, ArrayList<Integer> timeList) {
+		XYSeriesCollection dataset = new XYSeriesCollection();
+		final XYSeries series = new XYSeries(prn);
+		for (int i = 0; i < timeList.size(); i++) {
+			int time = timeList.get(i);
+			int flag = 0;
+			if (dataMap.containsKey(time)) {
+				flag = dataMap.get(time) ? 2 : 1;
+			}
+			series.add(time, flag);
+		}
+		dataset.addSeries(series);
 		return dataset;
 
 	}
