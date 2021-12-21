@@ -34,7 +34,7 @@ public class RobustEstimation {
 
 					Observation obs = obsList.get(i);
 					double[] satECEF = obs.getEcef();
-					double PR = obs.getPseduorange();
+					double PR = obs.getPseudorange();
 
 					final double[] ecefClk = estEcefClk;
 					// Approx Geometric Range
@@ -105,7 +105,7 @@ public class RobustEstimation {
 					for (int i = 0; i < n; i++) {
 						Observation obs = obsList.get(i);
 						double[] satECEF = obs.getEcef();
-						double PR = obs.getPseduorange();
+						double PR = obs.getPseudorange();
 						// Approx Geometric Range
 						double approxGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - _estEcefClk[j])
 								.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
@@ -166,17 +166,17 @@ public class RobustEstimation {
 			}
 			double[] satECEF = remObs.getEcef();
 			// Remote Station Pseudorange
-			double remPR = remObs.getPseduorange();
+			double remPR = remObs.getPseudorange();
 			// Base Station Pseudorange
-			double basePR = baseObs.getPseduorange();
+			double basePR = baseObs.getPseudorange();
 			// Base Station Geometric Range
 			double baseGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - trueBaseEcef[j])
 					.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
 			double corrPR = remPR - (basePR - baseGR);
-			Observation obs = new Observation(remObs.getT(), remObs.getPrn(), corrPR, remObs.getPhaseL1(),
-					remObs.getPhaseL2(), remObs.getDoppler());
-			obs.setEcef(satECEF);
-			obsList.add(obs);
+//			Observation obs = new Observation(remObs.getT(), remObs.getPrn(), corrPR, remObs.getPhaseL1(),
+//					remObs.getPhaseL2(), remObs.getDoppler());
+//			obs.setEcef(satECEF);
+//			obsList.add(obs);
 		}
 
 		double cm = 1.4815;
@@ -196,7 +196,7 @@ public class RobustEstimation {
 
 					Observation obs = obsList.get(i);
 					double[] satECEF = obs.getEcef();
-					double PR = obs.getPseduorange();
+					double PR = obs.getPseudorange();
 
 					final double[] ecefClk = estEcefClk;
 					// Approx Geometric Range
@@ -267,7 +267,7 @@ public class RobustEstimation {
 					for (int i = 0; i < n; i++) {
 						Observation obs = obsList.get(i);
 						double[] satECEF = obs.getEcef();
-						double PR = obs.getPseduorange();
+						double PR = obs.getPseudorange();
 						// Approx Geometric Range
 						double approxGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - _estEcefClk[j])
 								.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());

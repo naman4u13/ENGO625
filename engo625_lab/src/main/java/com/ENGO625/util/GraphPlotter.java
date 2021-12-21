@@ -393,7 +393,7 @@ public class GraphPlotter extends ApplicationFrame {
 				int t = obs.getT() - t0;
 
 				double drDoppler = obs.getDoppler() * (SpeedofLight / freqL1) * (t - prevT);
-				double drPR = list.get(i).getPseduorange() - list.get(i - 1).getPseduorange();
+				double drPR = list.get(i).getPseudorange() - list.get(i - 1).getPseudorange();
 				double drCP = -(list.get(i).getPhaseL1() - list.get(i - 1).getPhaseL1()) * (SpeedofLight / freqL1);
 				if (Math.abs(drDoppler - drPR) > 1 || Math.abs(drDoppler - drCP) > 1 || Math.abs(drCP - drPR) > 1) {
 					System.out.print("");
@@ -404,7 +404,7 @@ public class GraphPlotter extends ApplicationFrame {
 				if (flag == 0) {
 					data = obs.getDoppler();
 				} else if (flag == 1) {
-					data = obs.getPseduorange();
+					data = obs.getPseudorange();
 				} else {
 					data = obs.getPhaseL1();
 				}

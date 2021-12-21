@@ -23,6 +23,11 @@ public class KF {
 		this.P = new SimpleMatrix(P);
 	}
 
+	public void setState_ProcessCov(SimpleMatrix x, SimpleMatrix P) {
+		this.x = x;
+		this.P = P;
+	}
+
 	// Prediction step
 	public void predict() {
 		// x = F x
@@ -34,12 +39,11 @@ public class KF {
 	}
 
 	// Update Step
-	public void update(double[][] _z, double[][] _R, double[][] _ze, double[][] _H) {
+	public void update(double[][] _z, double[][] _R, SimpleMatrix ze, SimpleMatrix H) {
 
 		SimpleMatrix z = new SimpleMatrix(_z);
 		SimpleMatrix R = new SimpleMatrix(_R);
-		SimpleMatrix ze = new SimpleMatrix(_ze);
-		SimpleMatrix H = new SimpleMatrix(_H);
+
 		SimpleMatrix Ht = H.transpose();
 		SimpleMatrix K = null;
 

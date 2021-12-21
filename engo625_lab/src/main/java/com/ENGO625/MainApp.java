@@ -16,12 +16,14 @@ import org.json.JSONObject;
 import com.ENGO625.estimation.IF_Weight;
 import com.ENGO625.estimation.LinearLeastSquare;
 import com.ENGO625.estimation.RobustEstimation;
+import com.ENGO625.estimation.kalman_filter.EKF;
 import com.ENGO625.models.CxParam;
 import com.ENGO625.models.Observation;
 import com.ENGO625.models.SatResidual;
 import com.ENGO625.models.Satellite;
 import com.ENGO625.util.ComputeEleAzm;
 import com.ENGO625.util.CycleSlipDetection;
+import com.ENGO625.util.GraphPlotter;
 import com.ENGO625.util.LatLonUtil;
 import com.ENGO625.util.Parser;
 
@@ -246,12 +248,12 @@ public class MainApp {
 			if (opt == 8) {
 //				for (int i = 0; i < baseObsList.get(0).size(); i++) {
 //					double[] satEcef = remObsList.get(0).get(i).getEcef();
-//					double remRange = IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - remoteEcef[j]).map(j -> j * j)
-//							.sum();
+//					double remRange = Math.sqrt(
+//							IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - remoteEcef[j]).map(j -> j * j).sum());
 //					double[] remLOS = IntStream.range(0, 3).mapToDouble(j -> (satEcef[j] - remoteEcef[j]) / remRange)
 //							.toArray();
-//					double baseRange = IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - baseEcef[j]).map(j -> j * j)
-//							.sum();
+//					double baseRange = Math.sqrt(
+//							IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - baseEcef[j]).map(j -> j * j).sum());
 //					double[] baseLOS = IntStream.range(0, 3).mapToDouble(j -> (satEcef[j] - baseEcef[j]) / remRange)
 //							.toArray();
 //					double[] remElevAzm = ComputeEleAzm.computeEleAzm(remoteEcef, satEcef);
@@ -284,21 +286,21 @@ public class MainApp {
 						System.err.println("ERROR in RTK");
 						throw new Exception("ERROR IN RTK");
 					}
-					double refPR = remObsList.get(i).get(k).getPseduorange()
-							- baseObsList.get(i).get(k).getPseduorange();
+					double refPR = remObsList.get(i).get(k).getPseudorange()
+							- baseObsList.get(i).get(k).getPseudorange();
 					double refPhase = remObsList.get(i).get(k).getPhaseL1() - baseObsList.get(i).get(k).getPhaseL1();
-					double[] refUnitLOS = brsdUnitLOS(estRemEcef, baseEcef, remObsList.get(i).get(k).getEcef());
+					double[] refUnitLOS = getUnitLOS(estRemEcef, remObsList.get(i).get(k).getEcef());
 					boolean refIsPhaseLocked = remObsList.get(i).get(k).isPhaseLocked()
 							&& baseObsList.get(i).get(k).isPhaseLocked();
 					for (int j = 0; j < m; j++) {
 						if (j == k) {
 							continue;
 						}
-						double pseudorange = remObsList.get(i).get(j).getPseduorange()
-								- baseObsList.get(i).get(j).getPseduorange() - refPR;
+						double pseudorange = remObsList.get(i).get(j).getPseudorange()
+								- baseObsList.get(i).get(j).getPseudorange() - refPR;
 						double phase = remObsList.get(i).get(j).getPhaseL1() - baseObsList.get(i).get(j).getPhaseL1()
 								- refPhase;
-						double[] unitLOS = brsdUnitLOS(estRemEcef, baseEcef, remObsList.get(i).get(j).getEcef());
+						double[] unitLOS = getUnitLOS(estRemEcef, remObsList.get(i).get(j).getEcef());
 						boolean isPhaseLocked = remObsList.get(i).get(j).isPhaseLocked()
 								&& baseObsList.get(i).get(j).isPhaseLocked() && refIsPhaseLocked;
 
@@ -310,6 +312,16 @@ public class MainApp {
 					}
 					baselineObsList.add(obsList);
 
+				}
+				double[] intialBaseline = IntStream.range(0, 3).mapToDouble(i -> estRemEcef[i] - baseEcef[i]).toArray();
+				ArrayList<double[]> baselineList = new EKF().process(baselineObsList, timeList, intialBaseline);
+				for (int i = 0; i < baselineList.size(); i++) {
+					double[] baseline = baselineList.get(i);
+					double[] estEcef = new double[4];
+					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
+					EnuMap.computeIfAbsent("RTK", k -> new ArrayList<double[]>()).add(estimateENU(estEcef, remoteEcef));
+					CxParam Cx = lls.getCxParam();
+					CxMap.computeIfAbsent("RTK", k -> new ArrayList<CxParam>()).add(Cx);
 				}
 
 			}
@@ -368,7 +380,7 @@ public class MainApp {
 
 			// Plot Graphs
 //			GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
-//      	GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
 //			GraphPlotter.graphSatData(satDataMap, t0);
 //			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 //			GraphPlotter.graphSatRes(satResMap);
@@ -413,14 +425,14 @@ public class MainApp {
 		return list.stream().mapToDouble(x -> x).average().orElse(Double.NaN);
 	}
 
-	public static double[] brsdUnitLOS(double[] remEcef, double[] baseEcef, double[] satEcef) {
-		double[] remLOS = IntStream.range(0, 3).mapToDouble(i -> satEcef[i] - remEcef[i]).toArray();
-		double remRange = Math.sqrt(Arrays.stream(remLOS).map(i -> i * i).sum());
-		Arrays.stream(remLOS).forEach(i -> i = i / remRange);
-		double[] baseLOS = IntStream.range(0, 3).mapToDouble(i -> satEcef[i] - baseEcef[i]).toArray();
-		double baseRange = Math.sqrt(Arrays.stream(baseLOS).map(i -> i * i).sum());
-		Arrays.stream(baseLOS).forEach(i -> i = i / baseRange);
-		double[] unitLOS = IntStream.range(0, 3).mapToDouble(i -> remLOS[i] - baseLOS[i]).toArray();
+	public static double[] getUnitLOS(double[] rxEcef, double[] satEcef) {
+		double[] unitLOS = new double[3];
+		for (int i = 0; i < 3; i++) {
+			unitLOS[i] = satEcef[i] - rxEcef[i];
+		}
+		double range = Math.sqrt(Arrays.stream(unitLOS).map(j -> j * j).sum());
+		IntStream.range(0, 3).forEach(j -> unitLOS[j] = unitLOS[j] / range);
+
 		return unitLOS;
 	}
 

@@ -64,7 +64,7 @@ public class LinearLeastSquare {
 
 					Observation obs = obsList.get(i);
 					double[] satECEF = obs.getEcef();
-					double PR = obs.getPseduorange();
+					double PR = obs.getPseudorange();
 					// Approx Geometric Range
 					double approxGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
 							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
@@ -95,7 +95,7 @@ public class LinearLeastSquare {
 			residual = new double[n];
 			for (int i = 0; i < n; i++) {
 				Observation obs = obsList.get(i);
-				double PR = obs.getPseduorange();
+				double PR = obs.getPseudorange();
 				double PR_hat = Math
 						.sqrt(IntStream.range(0, 3).mapToDouble(j -> obs.getEcef()[j] - estEcefClk[j])
 								.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble())
@@ -151,9 +151,9 @@ public class LinearLeastSquare {
 					}
 					double[] satECEF = remObs.getEcef();
 					// Remote Station Pseudorange
-					double remPR = remObs.getPseduorange();
+					double remPR = remObs.getPseudorange();
 					// Base Station Pseudorange
-					double basePR = baseObs.getPseduorange();
+					double basePR = baseObs.getPseudorange();
 					// Approx Remote Station Geometric Range
 					double remGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
 							.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());
@@ -187,8 +187,8 @@ public class LinearLeastSquare {
 				Observation remObs = remObsvs.get(i);
 				Observation baseObs = baseObsvs.get(i);
 				double[] satECEF = remObs.getEcef();
-				double remPR = remObs.getPseduorange();
-				double basePR = baseObs.getPseduorange();
+				double remPR = remObs.getPseudorange();
+				double basePR = baseObs.getPseudorange();
 				// Approx Remote Geometric Range
 				double remGR = Math.sqrt(IntStream.range(0, 3).mapToDouble(j -> satECEF[j] - estEcefClk[j])
 						.map(j -> Math.pow(j, 2)).reduce((j, k) -> j + k).getAsDouble());

@@ -67,7 +67,7 @@ public class Observation {
 		return prn;
 	}
 
-	public double getPseduorange() {
+	public double getPseudorange() {
 		return pseduorange;
 	}
 

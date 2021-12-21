@@ -16,7 +16,7 @@ public class KFconfig extends KF {
 	private final double sf = h0 / 2;
 	private final double sg = 2 * Math.PI * Math.PI * h_2;
 
-	public void config(double deltaT) {
+	public void config() {
 
 		/*
 		 * The process noise for position vector will be initialized in ENU frame and
