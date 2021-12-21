@@ -8,9 +8,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.IntStream;
 
+import org.ejml.simple.SimpleMatrix;
 import org.json.JSONObject;
 
 import com.ENGO625.estimation.IF_Weight;
@@ -35,7 +37,7 @@ public class MainApp {
 
 		try {
 			// Path to store output file
-			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\output3";
+			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\output4";
 			File output = new File(path + ".txt");
 			PrintStream stream;
 			stream = new PrintStream(output);
@@ -92,8 +94,12 @@ public class MainApp {
 			for (Map.Entry ele : remoteOrdMap.entrySet()) {
 				// GPS Time
 				int t = (int) ele.getKey();
+				/*
+				 * if ((t - t0) > 2200) { break; }
+				 */
 				// Store GPS Time minus GPS Time of first epoch, to set timescale at zero
 				timeList.add(t - t0);
+
 				HashMap<Integer, Satellite> subSatMap = satMap.get(t);
 				ArrayList<Observation> remObsvs = (ArrayList<Observation>) ele.getValue();
 				ArrayList<Observation> baseObsvs = null;
@@ -263,13 +269,16 @@ public class MainApp {
 //				}
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
 			}
+			HashMap<String, HashMap<String, double[]>> rtkAmbMap = null;
 			if (opt == 9) {
 				LinearLeastSquare lls = new LinearLeastSquare();
 				double[] estRemEcef = lls.processBRSD(baseObsList.get(0), remObsList.get(0), baseEcef);
+				SimpleMatrix R = new SimpleMatrix(LatLonUtil.getEcef2EnuRotationMat(remoteEcef));
 				int refPRN = 11;
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
 				ArrayList<ArrayList<Observation>> baselineObsList = new ArrayList<ArrayList<Observation>>();
 				int n = baseObsList.size();
+				Set<Integer> reject = Set.of(9, 18, 22, 28);
 				for (int i = 0; i < n; i++) {
 					int m = baseObsList.get(i).size();
 					ArrayList<Observation> obsList = new ArrayList<Observation>();
@@ -296,6 +305,11 @@ public class MainApp {
 						if (j == k) {
 							continue;
 						}
+						int prn = remObsList.get(i).get(j).getPrn();
+						int t = remObsList.get(i).get(j).getT();
+//						if (reject.contains(prn)) {
+//							continue;
+//						}
 						double pseudorange = remObsList.get(i).get(j).getPseudorange()
 								- baseObsList.get(i).get(j).getPseudorange() - refPR;
 						double phase = remObsList.get(i).get(j).getPhaseL1() - baseObsList.get(i).get(j).getPhaseL1()
@@ -305,8 +319,7 @@ public class MainApp {
 								&& baseObsList.get(i).get(j).isPhaseLocked() && refIsPhaseLocked;
 
 						IntStream.range(0, 3).forEach(l -> unitLOS[l] = unitLOS[l] - refUnitLOS[l]);
-						int prn = remObsList.get(i).get(j).getPrn();
-						int t = remObsList.get(i).get(j).getT();
+
 						obsList.add(new Observation(t, prn, pseudorange, phase, unitLOS, isPhaseLocked));
 
 					}
@@ -314,7 +327,9 @@ public class MainApp {
 
 				}
 				double[] intialBaseline = IntStream.range(0, 3).mapToDouble(i -> estRemEcef[i] - baseEcef[i]).toArray();
-				ArrayList<double[]> baselineList = new EKF().process(baselineObsList, timeList, intialBaseline);
+				EKF ekf = new EKF();
+				ArrayList<double[]> baselineList = ekf.process(baselineObsList, timeList, intialBaseline, R);
+				rtkAmbMap = ekf.getAmbInfoMap();
 				for (int i = 0; i < baselineList.size(); i++) {
 					double[] baseline = baselineList.get(i);
 					double[] estEcef = new double[4];
@@ -379,8 +394,9 @@ public class MainApp {
 			}
 
 			// Plot Graphs
-//			GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
+			// GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
 			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			// GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
 //			GraphPlotter.graphSatData(satDataMap, t0);
 //			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 //			GraphPlotter.graphSatRes(satResMap);

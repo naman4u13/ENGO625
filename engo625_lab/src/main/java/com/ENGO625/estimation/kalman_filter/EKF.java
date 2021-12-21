@@ -11,15 +11,18 @@ import com.ENGO625.models.Observation;
 
 public class EKF {
 
+	private static final double wavelengthL1 = 0.1902936727983649;
 	private KFconfig kfObj;
 	private double prObsNoiseVar;
+	private HashMap<String, HashMap<String, double[]>> ambInfoMap;
 
 	public EKF() {
 		kfObj = new KFconfig();
+		ambInfoMap = new HashMap<String, HashMap<String, double[]>>();
 	}
 
 	public ArrayList<double[]> process(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
-			double[] intialBaseline) throws Exception {
+			double[] intialBaseline, SimpleMatrix R) throws Exception {
 
 		double[][] x = new double[3][1];
 		double[][] P = new double[3][3];
@@ -34,15 +37,19 @@ public class EKF {
 
 		kfObj.setState_ProcessCov(x, P);
 		// Begin iteration or recursion
-		return iterate(baselineObsList, timeList);
+		return iterate(baselineObsList, timeList, R);
 
 	}
 
-	private ArrayList<double[]> iterate(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList)
-			throws Exception {
+	private ArrayList<double[]> iterate(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
+			SimpleMatrix R) throws Exception {
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
 		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
-		for (int i = 0; i < timeList.size(); i++) {
+		int len = timeList.size();
+//		ambInfoMap.put("e", new double[len]);
+//		ambInfoMap.put("n", new double[len]);
+//		ambInfoMap.put("u", new double[len]);
+		for (int i = 0; i < len; i++) {
 			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
 			int n = baselineObsvs.size();
 			SimpleMatrix x = kfObj.getState();
@@ -66,8 +73,9 @@ public class EKF {
 					_P.set(j, 2, P.get(k, 2));
 					_P.set(j, j, P.get(k, k));
 					for (int l = j + 1; l < 3 + n; l++) {
-						int _prn = baselineObsvs.get(l - 3).getPrn();
-						if (map.containsKey(_prn)) {
+						Observation _obs = baselineObsvs.get(l - 3);
+						int _prn = _obs.getPrn();
+						if (map.containsKey(_prn) && _obs.isPhaseLocked() == true) {
 							int m = map.get(_prn);
 							_P.set(j, l, P.get(k, m));
 							_P.set(l, j, P.get(m, k));
@@ -78,12 +86,6 @@ public class EKF {
 				} else {
 					_x.set(j, obs.getPhaseL1() - obs.getPseudorange());
 					_P.set(j, j, 1e8);
-					if (obs.isPhaseLocked() == false) {
-						for (int l = j - 1; l > 2; l--) {
-							_P.set(j, l, 0);
-							_P.set(l, j, 0);
-						}
-					}
 
 				}
 
@@ -104,9 +106,27 @@ public class EKF {
 			 * Check whether estimate error covariance matrix is positive semidefinite
 			 * before further proceeding
 			 */
+
 			if (!MatrixFeatures_DDRM.isPositiveDefinite(P.getMatrix())) {
 
 				throw new Exception("PositiveDefinite test Failed");
+			}
+//			SimpleMatrix enuCov = R.mult(P.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
+//			ambInfoMap.get("e")[i] = Math.sqrt(enuCov.get(0, 0));
+//			ambInfoMap.get("n")[i] = Math.sqrt(enuCov.get(1, 1));
+//			ambInfoMap.get("u")[i] = Math.sqrt(enuCov.get(2, 2));
+
+			for (int prn : map.keySet()) {
+				int j = map.get(prn);
+				String PRN = Integer.toString(prn);
+				ambInfoMap.computeIfAbsent(PRN, k -> new HashMap<String, double[]>())
+						.computeIfAbsent("Ambiguity Float Value", k -> new double[len])[i] = x.get(j);
+				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity Standard Deviation", k -> new double[len])[i] = Math
+						.sqrt(P.get(j, j));
+				ambInfoMap.get(PRN).computeIfAbsent(
+						"Phase Lock(0 - Signal Lost, 1 - Lock Lost/Cycle Slip, 2 - Phase Locked)",
+						k -> new double[len])[i] = baselineObsvs.get(j - 3).isPhaseLocked() ? 2 : 1;
+
 			}
 
 		}
@@ -163,5 +183,9 @@ public class EKF {
 
 		return H;
 
+	}
+
+	public HashMap<String, HashMap<String, double[]>> getAmbInfoMap() {
+		return ambInfoMap;
 	}
 }

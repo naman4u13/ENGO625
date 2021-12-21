@@ -84,4 +84,15 @@ public class LatLonUtil {
 		return enu;
 	}
 
+	public static double[][] getEcef2EnuRotationMat(double[] refEcef) {
+		double[] llh = ecef2lla(refEcef);
+		double lat = Math.toRadians(llh[0]);
+		double lon = Math.toRadians(llh[1]);
+		double[][] R = new double[][] { { -Math.sin(lon), Math.cos(lon), 0 },
+				{ -Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat) },
+				{ Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat) } };
+
+		return R;
+	}
+
 }

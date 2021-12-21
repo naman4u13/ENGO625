@@ -38,6 +38,23 @@ public class GraphPlotter extends ApplicationFrame {
 
 	}
 
+	public GraphPlotter(String title, HashMap<String, double[]> dataMap, ArrayList<Integer> timeList)
+			throws IOException {
+
+		super("PRN " + title + " RTK Ambiguity Info Graph");
+		// TODO Auto-generated constructor stub
+
+		final JFreeChart chart = ChartFactory.createXYLineChart("PRN " + title + " RTK Ambiguity Info Graph",
+				"GPS-time", "Info", createRTKcovDataset(dataMap, timeList));
+		final ChartPanel chartPanel = new ChartPanel(chart);
+		chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
+		chartPanel.setMouseZoomable(true, false);
+		// ChartUtils.saveChartAsJPEG(new File(path + chartTitle + ".jpeg"), chart,
+		// 1000, 600);
+		setContentPane(chartPanel);
+
+	}
+
 	public GraphPlotter(int prn, HashMap<Integer, Boolean> dataMap, ArrayList<Integer> timeList) throws IOException {
 		super(prn + " Cycle-Slip Detection");
 		// TODO Auto-generated constructor stub
@@ -280,6 +297,18 @@ public class GraphPlotter extends ApplicationFrame {
 		}
 	}
 
+	public static void graphRTKcov(HashMap<String, HashMap<String, double[]>> rtkAmbMap, ArrayList<Integer> timeList)
+			throws IOException {
+
+		for (String key : rtkAmbMap.keySet()) {
+			GraphPlotter chart = new GraphPlotter(key, rtkAmbMap.get(key), timeList);
+			chart.pack();
+			RefineryUtilities.positionFrameRandomly(chart);
+			chart.setVisible(true);
+		}
+
+	}
+
 	private XYDataset createDatasetENU(HashMap<String, double[][]> dataMap, ArrayList<Integer> timeList) {
 		XYSeriesCollection dataset = new XYSeriesCollection();
 		for (String key : dataMap.keySet()) {
@@ -360,6 +389,22 @@ public class GraphPlotter extends ApplicationFrame {
 			series.add(time, flag);
 		}
 		dataset.addSeries(series);
+		return dataset;
+
+	}
+
+	private XYDataset createRTKcovDataset(HashMap<String, double[]> dataMap, ArrayList<Integer> timeList) {
+		XYSeriesCollection dataset = new XYSeriesCollection();
+		for (String key : dataMap.keySet()) {
+			final XYSeries series = new XYSeries(key);
+			double[] data = dataMap.get(key);
+			for (int i = 0; i < timeList.size(); i++) {
+
+				series.add(timeList.get(i), new Double(data[i]));
+			}
+			dataset.addSeries(series);
+		}
+
 		return dataset;
 
 	}
