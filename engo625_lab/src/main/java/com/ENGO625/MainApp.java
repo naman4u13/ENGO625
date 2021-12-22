@@ -37,7 +37,7 @@ public class MainApp {
 
 		try {
 			// Path to store output file
-			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\output4";
+			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\outputRTKfixed2";
 			File output = new File(path + ".txt");
 			PrintStream stream;
 			stream = new PrintStream(output);
@@ -94,9 +94,11 @@ public class MainApp {
 			for (Map.Entry ele : remoteOrdMap.entrySet()) {
 				// GPS Time
 				int t = (int) ele.getKey();
-				/*
-				 * if ((t - t0) > 2200) { break; }
-				 */
+
+				if ((t - t0) > 3400) {
+					break;
+				}
+
 				// Store GPS Time minus GPS Time of first epoch, to set timescale at zero
 				timeList.add(t - t0);
 
@@ -278,7 +280,7 @@ public class MainApp {
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
 				ArrayList<ArrayList<Observation>> baselineObsList = new ArrayList<ArrayList<Observation>>();
 				int n = baseObsList.size();
-				Set<Integer> reject = Set.of(9, 18, 22, 28);
+				Set<Integer> reject = Set.of(9, 18, 22, 28, 8, 19);
 				for (int i = 0; i < n; i++) {
 					int m = baseObsList.get(i).size();
 					ArrayList<Observation> obsList = new ArrayList<Observation>();
@@ -307,9 +309,9 @@ public class MainApp {
 						}
 						int prn = remObsList.get(i).get(j).getPrn();
 						int t = remObsList.get(i).get(j).getT();
-//						if (reject.contains(prn)) {
-//							continue;
-//						}
+						if (reject.contains(prn)) {
+							continue;
+						}
 						double pseudorange = remObsList.get(i).get(j).getPseudorange()
 								- baseObsList.get(i).get(j).getPseudorange() - refPR;
 						double phase = remObsList.get(i).get(j).getPhaseL1() - baseObsList.get(i).get(j).getPhaseL1()
