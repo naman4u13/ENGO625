@@ -396,7 +396,7 @@ public class MainApp {
 			// Plot Graphs
 			// GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
 			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
-			// GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
+			GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
 //			GraphPlotter.graphSatData(satDataMap, t0);
 //			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 //			GraphPlotter.graphSatRes(satResMap);
