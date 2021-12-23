@@ -56,11 +56,12 @@ public class GraphPlotter extends ApplicationFrame {
 	}
 
 	public GraphPlotter(int prn, HashMap<Integer, Boolean> dataMap, ArrayList<Integer> timeList) throws IOException {
-		super(prn + " Cycle-Slip Detection");
+		super("PRN " + prn + " Cycle-Slip Detection");
 		// TODO Auto-generated constructor stub
 
-		final JFreeChart chart = ChartFactory.createXYLineChart(prn + " Is-Phase-Locked", "GPS-time", "Is-Phase-Locked",
-				createCycleSlipDataset(prn, dataMap, timeList));
+		final JFreeChart chart = ChartFactory.createXYLineChart(
+				"PRN " + prn + " Phase-Lock/Cycle-Slip Detection( 0 - Signal Lost, 1 - Cycle Slip, 2- Phase Locked) ",
+				"GPS-time", "Phase-Lock", createCycleSlipDataset(prn, dataMap, timeList));
 		final ChartPanel chartPanel = new ChartPanel(chart);
 		chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
 		chartPanel.setMouseZoomable(true, false);
@@ -195,7 +196,13 @@ public class GraphPlotter extends ApplicationFrame {
 				ArrayList<CxParam> CxList = CxMap.get(key);
 				double[][] arr = new double[2][];
 				arr[0] = enuList.stream().mapToDouble(j -> j[index]).toArray();
-				arr[1] = CxList.stream().mapToDouble(j -> Math.sqrt(j.getDopDiag()[index] * j.getVarUERE())).toArray();
+				if (CxList.get(0).isEnuCovPresent()) {
+					arr[1] = CxList.stream().mapToDouble(j -> Math.sqrt(j.getEnuCov()[index])).toArray();
+				} else {
+					arr[1] = CxList.stream().mapToDouble(j -> Math.sqrt(j.getDopDiag()[index] * j.getVarUERE()))
+							.toArray();
+
+				}
 				dataMap.put(key, arr);
 			}
 			GraphPlotter chart = new GraphPlotter("GPS PVT Error - ", chartNames[i] + "(m)", dataMap, timeList, true);
@@ -323,8 +330,8 @@ public class GraphPlotter extends ApplicationFrame {
 				nsdSeries.add(timeList.get(i), Double.valueOf(-sd[i]));
 			}
 			dataset.addSeries(errSeries);
-			// dataset.addSeries(psdSeries);
-			// dataset.addSeries(nsdSeries);
+//			dataset.addSeries(psdSeries);
+//			dataset.addSeries(nsdSeries);
 		}
 
 		return dataset;

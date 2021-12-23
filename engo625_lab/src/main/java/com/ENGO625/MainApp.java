@@ -37,7 +37,7 @@ public class MainApp {
 
 		try {
 			// Path to store output file
-			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\outputRTKtemp7";
+			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\output_test2";
 			File output = new File(path + ".txt");
 			PrintStream stream;
 			stream = new PrintStream(output);
@@ -69,7 +69,7 @@ public class MainApp {
 			 * Estimation option - (1. Satellite Trajectory, 2. Least Squares, 3. WLS, 4.
 			 * Between Receiver Single Difference(BRSD), 5. Combined of option 2,3 and 4)
 			 */
-			int opt = 8;
+			int opt = 9;
 			// Option 1 is to output a json file containing Satellite Coordinates
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
@@ -253,35 +253,25 @@ public class MainApp {
 				}
 			}
 
+			// Cycle Slip Detection
 			if (opt == 8) {
-//				for (int i = 0; i < baseObsList.get(0).size(); i++) {
-//					double[] satEcef = remObsList.get(0).get(i).getEcef();
-//					double remRange = Math.sqrt(
-//							IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - remoteEcef[j]).map(j -> j * j).sum());
-//					double[] remLOS = IntStream.range(0, 3).mapToDouble(j -> (satEcef[j] - remoteEcef[j]) / remRange)
-//							.toArray();
-//					double baseRange = Math.sqrt(
-//							IntStream.range(0, 3).mapToDouble(j -> satEcef[j] - baseEcef[j]).map(j -> j * j).sum());
-//					double[] baseLOS = IntStream.range(0, 3).mapToDouble(j -> (satEcef[j] - baseEcef[j]) / remRange)
-//							.toArray();
-//					double[] remElevAzm = ComputeEleAzm.computeEleAzm(remoteEcef, satEcef);
-//					double[] baseElevAzm = ComputeEleAzm.computeEleAzm(baseEcef, satEcef);
-//					System.out.println();
-//
-//				}
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
 			}
+			// RTK
 			HashMap<String, HashMap<String, double[]>> rtkAmbMap = null;
 			if (opt == 9) {
 				LinearLeastSquare lls = new LinearLeastSquare();
 				double[] estRemEcef = lls.processBRSD(baseObsList.get(0), remObsList.get(0), baseEcef);
-				double[] err = IntStream.range(0, 3).mapToDouble(i -> estRemEcef[i] - remoteEcef[i]).map(i -> i * i)
-						.toArray();
-				SimpleMatrix R = new SimpleMatrix(LatLonUtil.getEcef2EnuRotationMat(remoteEcef));
+
+				SimpleMatrix _R = new SimpleMatrix(LatLonUtil.getEnu2EcefRotMat(remoteEcef));
+				SimpleMatrix R = new SimpleMatrix(LatLonUtil.getEcef2EnuRotMat(remoteEcef));
+				// Base Satellite
 				int refPRN = 11;
+				// Perform Cycle Slip
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
 				ArrayList<ArrayList<Observation>> baselineObsList = new ArrayList<ArrayList<Observation>>();
 				int n = baseObsList.size();
+				// Reject following satellites
 				Set<Integer> reject = Set.of(9, 18, 22, 28, 8, 19);
 				for (int i = 0; i < n; i++) {
 					int m = baseObsList.get(i).size();
@@ -295,10 +285,7 @@ public class MainApp {
 							break;
 						}
 					}
-					if (flag == false) {
-						System.err.println("ERROR in RTK");
-						throw new Exception("ERROR IN RTK");
-					}
+					// Perform Double difference
 					double refPR = remObsList.get(i).get(k).getPseudorange()
 							- baseObsList.get(i).get(k).getPseudorange();
 					double refPhase = remObsList.get(i).get(k).getPhaseL1() - baseObsList.get(i).get(k).getPhaseL1();
@@ -330,33 +317,34 @@ public class MainApp {
 					baselineObsList.add(obsList);
 
 				}
+				// Intitiating the Kalman Filter
 				double[] intialBaseline = IntStream.range(0, 3).mapToDouble(i -> estRemEcef[i] - baseEcef[i]).toArray();
 				EKF ekf = new EKF();
-				ArrayList<double[]> baselineList = ekf.process(baselineObsList, timeList, intialBaseline, R);
+				ArrayList<double[]> baselineList = ekf.process(baselineObsList, timeList, intialBaseline, R, _R);
+				ArrayList<double[]> stateInfo = ekf.getStateInfo();
 				rtkAmbMap = ekf.getAmbInfoMap();
 				for (int i = 0; i < baselineList.size(); i++) {
 					double[] baseline = baselineList.get(i);
 					double[] estEcef = new double[4];
 					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
-					EnuMap.computeIfAbsent("RTK_float", k -> new ArrayList<double[]>())
+					EnuMap.computeIfAbsent("RTK-float", k -> new ArrayList<double[]>())
 							.add(estimateENU(estEcef, remoteEcef));
-					CxParam Cx = lls.getCxParam();
-					CxMap.computeIfAbsent("RTK_float", k -> new ArrayList<CxParam>()).add(Cx);
+					CxParam Cx = new CxParam(stateInfo.get(i));
+					CxMap.computeIfAbsent("RTK-float", k -> new ArrayList<CxParam>()).add(Cx);
 				}
-//				HashMap<Integer, Double> intAmbMap = ekf.getIntAmbMap();
-//				// baselineObsList.stream().forEach(i -> i.removeIf(j ->
-//				// (reject.contains(j.getPrn()))));
-//				baselineList = ekf.processOnlyPhase(baselineObsList, timeList,
-//						baselineList.get(baselineList.size() - 1), R, intAmbMap);
-//				for (int i = 0; i < baselineList.size(); i++) {
-//					double[] baseline = baselineList.get(i);
-//					double[] estEcef = new double[4];
-//					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
-//					EnuMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<double[]>())
-//							.add(estimateENU(estEcef, remoteEcef));
-//					CxParam Cx = lls.getCxParam();
-//					CxMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<CxParam>()).add(Cx);
-//				}
+				HashMap<Integer, Double> intAmbMap = ekf.getIntAmbMap();
+				baselineList = ekf.processOnlyPhase(baselineObsList, timeList,
+						baselineList.get(baselineList.size() - 1), R, intAmbMap, "");
+				stateInfo = ekf.getStateInfo();
+				for (int i = 0; i < baselineList.size(); i++) {
+					double[] baseline = baselineList.get(i);
+					double[] estEcef = new double[4];
+					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
+					EnuMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<double[]>())
+							.add(estimateENU(estEcef, remoteEcef));
+					CxParam Cx = new CxParam(stateInfo.get(i));
+					CxMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<CxParam>()).add(Cx);
+				}
 
 			}
 
@@ -410,25 +398,12 @@ public class MainApp {
 				IntStream.range(0, 6).forEach(i -> Collections.sort(errList[i]));
 				int q95 = (int) (n * 0.95);
 
-				if (opt == 9) {
-
-				}
-
-//				System.out.println("\n" + key + " 95%");
-//
-//				System.out.println(" E - " + errList[0].get(q95));
-//				System.out.println(" N - " + errList[1].get(q95));
-//				System.out.println(" U - " + errList[2].get(q95));
-//				System.out.println(" 3d Error - " + errList[3].get(q95));
-//				System.out.println(" 2d Error - " + errList[4].get(q95));
-//				System.out.println(" Rcvr CLk Off(in m) - " + errList[5].get(q95));
-
 			}
 
 			// Plot Graphs
-			GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
-			// GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
-			// GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
+			// GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
+			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
 //			GraphPlotter.graphSatData(satDataMap, t0);
 //			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 //			GraphPlotter.graphSatRes(satResMap);

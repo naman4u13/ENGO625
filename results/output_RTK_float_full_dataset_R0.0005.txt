@@ -1,0 +1,34 @@
+AT t = 3599
+7 amb. std dev: 0.08325456497540751  float ambiguity: 109.66658387708003
+7 Fixed Ambiguity: 110.0
+8 amb. std dev: 0.007703494840907325  float ambiguity: -16.3464262704482
+8 Fixed Ambiguity: -16.0
+9 amb. std dev: 0.020679775001275942  float ambiguity: -4.998764377781595
+9 Fixed Ambiguity: -5.0
+15 amb. std dev: 0.022664072989073473  float ambiguity: -10.051138068139817
+15 Fixed Ambiguity: -10.0
+17 amb. std dev: 0.015720810262167848  float ambiguity: -13.033051143286352
+17 Fixed Ambiguity: -13.0
+24 amb. std dev: 0.019694116443244012  float ambiguity: -11.849486730784703
+24 Fixed Ambiguity: -12.0
+26 amb. std dev: 0.022495363250107234  float ambiguity: 8.223645705043255
+26 Fixed Ambiguity: 8.0
+27 amb. std dev: 0.020946719435212913  float ambiguity: -3.3952589219627436
+27 Fixed Ambiguity: -3.0
+28 amb. std dev: 0.009606416285146113  float ambiguity: -3.900822348102578
+28 Fixed Ambiguity: -4.0
+
+RTK_float RMSE
+ E - 0.15760474844100417
+ N - 0.1016520888805248
+ U - 0.09618521769237694
+ 3d Error - 0.2107700168606917
+ 2d Error - 0.18754307213258056
+ Rcvr CLk Off(in m) - 0.0
+
+RTK_float Converged Value
+ E - 0.03585313959120896
+ N - 0.11075104534394689
+ U - 0.11305577768764284
+ 3d Error - 0.1622739983234573
+ 2d Error - 0.11640980054670524

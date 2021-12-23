@@ -84,7 +84,7 @@ public class LatLonUtil {
 		return enu;
 	}
 
-	public static double[][] getEcef2EnuRotationMat(double[] refEcef) {
+	public static double[][] getEcef2EnuRotMat(double[] refEcef) {
 		double[] llh = ecef2lla(refEcef);
 		double lat = Math.toRadians(llh[0]);
 		double lon = Math.toRadians(llh[1]);
@@ -92,6 +92,23 @@ public class LatLonUtil {
 				{ -Math.sin(lat) * Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat) },
 				{ Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat) } };
 
+		return R;
+	}
+
+	/*
+	 * Compute Rotation Matrix to transform from ENU to ECEF frame. Reference -
+	 * https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#
+	 * From_ENU_to_ECEF
+	 */
+	public static SimpleMatrix getEnu2EcefRotMat(double[] ecef) {
+		double[] llh = LatLonUtil.ecef2lla(ecef);
+		double lat = Math.toRadians(llh[0]);
+		double lon = Math.toRadians(llh[1]);
+		double[][] r = new double[][] {
+				{ -Math.sin(lon), -Math.sin(lat) * Math.cos(lon), Math.cos(lat) * Math.cos(lon) },
+				{ Math.cos(lon), -Math.sin(lat) * Math.sin(lon), Math.cos(lat) * Math.sin(lon) },
+				{ 0, Math.cos(lat), Math.sin(lat) } };
+		SimpleMatrix R = new SimpleMatrix(r);
 		return R;
 	}
 

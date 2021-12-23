@@ -16,61 +16,58 @@ public class EKF {
 	private KFconfig kfObj;
 	private double prObsNoiseVar;
 	private HashMap<String, HashMap<String, double[]>> ambInfoMap;
+	private ArrayList<double[]> stateInfo;
 	private HashMap<Integer, Double> intAmbMap;
 
 	public EKF() {
 		kfObj = new KFconfig();
 		ambInfoMap = new HashMap<String, HashMap<String, double[]>>();
+
 	}
 
 	public ArrayList<double[]> process(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
-			double[] intialBaseline, SimpleMatrix R) throws Exception {
+			double[] intialBaseline, SimpleMatrix R, SimpleMatrix _R) throws Exception {
 
 		double[][] x = new double[3][1];
 		double[][] P = new double[3][3];
-		/*
-		 * state XYZ is intialized WLS generated Rx position estimated using first epoch
-		 * data, a-priori estimate error covariance matrix for state XYZ is therefore
-		 * assigned 4 m^2 value. Other state variables are assigned infinite(big)
-		 * variance
-		 */
+
+		// get ECEF coord based intial variance
+		SimpleMatrix prioriEcefCov = _R.mult(SimpleMatrix.diag(1, 1, 4)).mult(_R.transpose());
+
 		IntStream.range(0, 3).forEach(i -> x[i][0] = intialBaseline[i]);
-		P[0][0] = 1;
-		P[1][1] = 1;
-		P[2][2] = 2;
-		// IntStream.range(0, 3).forEach(i -> P[i][i] = 4);
+		P[0][0] = prioriEcefCov.get(0, 0);
+		P[1][1] = prioriEcefCov.get(1, 1);
+		P[2][2] = prioriEcefCov.get(2, 2);
 
 		kfObj.setState_ProcessCov(x, P);
 		// Begin iteration or recursion
-		return iterate2(baselineObsList, timeList, R);
+		return iterate(baselineObsList, timeList, R);
 
 	}
 
+	// RTK-Fix for Carrier Phase only
 	public ArrayList<double[]> processOnlyPhase(ArrayList<ArrayList<Observation>> baselineObsList,
-			ArrayList<Integer> timeList, double[] intialBaseline, SimpleMatrix R, HashMap<Integer, Double> intAmbMap)
-			throws Exception {
+			ArrayList<Integer> timeList, double[] intialBaseline, SimpleMatrix R, HashMap<Integer, Double> intAmbMap,
+			String flag) throws Exception {
 
 		double[][] x = new double[3][1];
 		double[][] P = new double[3][3];
-		/*
-		 * state XYZ is intialized WLS generated Rx position estimated using first epoch
-		 * data, a-priori estimate error covariance matrix for state XYZ is therefore
-		 * assigned 4 m^2 value. Other state variables are assigned infinite(big)
-		 * variance
-		 */
+
 		IntStream.range(0, 3).forEach(i -> x[i][0] = intialBaseline[i]);
-		IntStream.range(0, 3).forEach(i -> P[i][i] = 0.1);
+		IntStream.range(0, 3).forEach(i -> P[i][i] = .1);
 
 		kfObj.setState_ProcessCov(x, P);
 		// Begin iteration or recursion
-		return iterateOnlyPhase(baselineObsList, timeList, R, intAmbMap);
+		return iterateOnlyPhase(baselineObsList, timeList, R, intAmbMap, flag);
 
 	}
 
+	// RTK-Fix for Carrier Phase only, Iterate the KF
 	private ArrayList<double[]> iterateOnlyPhase(ArrayList<ArrayList<Observation>> baselineObsList,
-			ArrayList<Integer> timeList, SimpleMatrix R, HashMap<Integer, Double> intAmbMap) throws Exception {
+			ArrayList<Integer> timeList, SimpleMatrix R, HashMap<Integer, Double> intAmbMap, String flag)
+			throws Exception {
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
-
+		stateInfo = new ArrayList<double[]>();
 		int len = timeList.size();
 		for (int i = 0; i < len; i++) {
 			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
@@ -81,7 +78,13 @@ public class EKF {
 				valid = valid && baselineObsvs.get(j).isPhaseLocked();
 			}
 			if (!valid) {
+				System.err.println(i);
 				continue;
+			}
+			for (int j = 0; j < n; j++) {
+				int prn = baselineObsvs.get(j).getPrn();
+				ambInfoMap.computeIfAbsent("" + prn, k -> new HashMap<String, double[]>()).computeIfAbsent(
+						flag + "Ambiguity-Integer-Value", k -> new double[len])[i] = intAmbMap.get(prn);
 			}
 			// Perform Predict and Update
 			runFilterOnlyPhase(baselineObsvs, intAmbMap);
@@ -95,6 +98,8 @@ public class EKF {
 			 * Check whether estimate error covariance matrix is positive semidefinite
 			 * before further proceeding
 			 */
+			SimpleMatrix enuCov = R.mult(P.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
+			stateInfo.add(new double[] { enuCov.get(0, 0), enuCov.get(1, 1), enuCov.get(2, 2) });
 			if (!MatrixFeatures_DDRM.isPositiveDefinite(P.getMatrix())) {
 
 				throw new Exception("PositiveDefinite test Failed");
@@ -104,12 +109,13 @@ public class EKF {
 		return baselineList;
 	}
 
+	// RTK float
 	private ArrayList<double[]> iterate(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
 			SimpleMatrix R) throws Exception {
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
 		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
 		int len = timeList.size();
-
+		stateInfo = new ArrayList<double[]>();
 		for (int i = 0; i < len; i++) {
 			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
 			int n = baselineObsvs.size();
@@ -188,16 +194,20 @@ public class EKF {
 				}
 
 			}
+			SimpleMatrix enuCov = R.mult(P.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
+			stateInfo.add(new double[] { enuCov.get(0, 0), enuCov.get(1, 1), enuCov.get(2, 2) });
 			for (int prn : map.keySet()) {
 				int j = map.get(prn);
 				String PRN = Integer.toString(prn);
 				ambInfoMap.computeIfAbsent(PRN, k -> new HashMap<String, double[]>())
-						.computeIfAbsent("Ambiguity Float Value", k -> new double[len])[i] = x.get(j);
-				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity Standard Deviation", k -> new double[len])[i] = Math
-						.sqrt(P.get(j, j));
-				ambInfoMap.get(PRN).computeIfAbsent(
-						"Phase Lock(0 - Signal Lost, 1 - Lock Lost/Cycle Slip, 2 - Phase Locked)",
-						k -> new double[len])[i] = baselineObsvs.get(j - 3).isPhaseLocked() ? 2 : 1;
+						.computeIfAbsent("Ambiguity-Float-Value", k -> new double[len])[i] = x.get(j);
+				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity +SD", k -> new double[len])[i] = x.get(j)
+						+ Math.sqrt(P.get(j, j));
+				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity -SD", k -> new double[len])[i] = x.get(j)
+						- Math.sqrt(P.get(j, j));
+//				ambInfoMap.get(PRN).computeIfAbsent(
+//						"Phase Lock(0 - Signal Lost, 1 - Lock Lost/Cycle Slip, 2 - Phase Locked)",
+//						k -> new double[len])[i] = baselineObsvs.get(j - 3).isPhaseLocked() ? 2 : 1;
 
 			}
 
@@ -206,9 +216,10 @@ public class EKF {
 		return baselineList;
 	}
 
+	// RTK-fix (Ratio-Test Based)
 	private ArrayList<double[]> iterate2(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
 			SimpleMatrix R) throws Exception {
-		int t_thresh = 3300;
+		int t_thresh = 800;
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
 		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
 		int len = timeList.size();
@@ -216,7 +227,7 @@ public class EKF {
 		int[] intAmb = new int[2 * n0];
 		double[] sosr = new double[(int) Math.pow(2, n0)];
 		boolean isFixed = false;
-
+		stateInfo = new ArrayList<double[]>();
 		for (int i = 0; i < len; i++) {
 			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
 			Collections.sort(baselineObsvs, (o1, o2) -> o1.getPrn() - o2.getPrn());
@@ -329,16 +340,19 @@ public class EKF {
 
 				throw new Exception("PositiveSemiDefinite test Failed");
 			}
+			SimpleMatrix enuCov = R.mult(P.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
+			stateInfo.add(new double[] { enuCov.get(0, 0), enuCov.get(1, 1), enuCov.get(2, 2) });
+
 			for (int prn : map.keySet()) {
 				int j = map.get(prn);
 				String PRN = Integer.toString(prn);
-				ambInfoMap.computeIfAbsent(PRN, k -> new HashMap<String, double[]>())
-						.computeIfAbsent("Ambiguity Float Value", k -> new double[len])[i] = x.get(j);
-				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity Standard Deviation", k -> new double[len])[i] = Math
-						.sqrt(P.get(j, j));
-				ambInfoMap.get(PRN).computeIfAbsent(
-						"Phase Lock(0 - Signal Lost, 1 - Lock Lost/Cycle Slip, 2 - Phase Locked)",
-						k -> new double[len])[i] = baselineObsvs.get(j - 3).isPhaseLocked() ? 2 : 1;
+				ambInfoMap.computeIfAbsent(PRN, k -> new HashMap<String, double[]>()).computeIfAbsent("Ambiguity Value",
+						k -> new double[len])[i] = x.get(j);
+//				ambInfoMap.get(PRN).computeIfAbsent("Ambiguity Standard Deviation", k -> new double[len])[i] = Math
+//						.sqrt(P.get(j, j));
+//				ambInfoMap.get(PRN).computeIfAbsent(
+//						"Phase Lock(0 - Signal Lost, 1 - Lock Lost/Cycle Slip, 2 - Phase Locked)",
+//						k -> new double[len])[i] = baselineObsvs.get(j - 3).isPhaseLocked() ? 2 : 1;
 
 			}
 
@@ -347,6 +361,7 @@ public class EKF {
 		return baselineList;
 	}
 
+	// RTK fix (Carrier Phase Only)
 	private void runFilterOnlyPhase(ArrayList<Observation> baselineObsvs, HashMap<Integer, Double> intAmbMap) {
 
 		// Satellite count
@@ -383,6 +398,7 @@ public class EKF {
 
 	}
 
+	// RTK
 	private void runFilter(ArrayList<Observation> baselineObsvs) {
 
 		// Satellite count
@@ -453,6 +469,7 @@ public class EKF {
 		return ambInfoMap;
 	}
 
+	// Calculate and update Sum of Squared Residual
 	private void updateSOSR(double[] ambRes, double[][] res, double[] sosr, int i, int j, SimpleMatrix W, int n0) {
 		if (i < n0) {
 			res[i][0] = ambRes[2 * i];
@@ -467,6 +484,7 @@ public class EKF {
 
 	}
 
+	// Perform Ratio Test
 	private int ratioTest(double[] sosr) {
 
 		double threshold = 3;
@@ -474,19 +492,25 @@ public class EKF {
 		double min = Double.MAX_VALUE;
 		double min2 = Double.MAX_VALUE;
 		int index = -1;
+
 		for (int i = 0; i < n; i++) {
 			if (sosr[i] <= min) {
 				min2 = min;
 				min = sosr[i];
 				index = i;
+
+			} else if (sosr[i] <= min2) {
+				min2 = sosr[i];
 			}
 		}
 		if ((min2 / min) > threshold) {
+			System.out.println("Min SOSR = " + min + " MIN2 = " + min2 + " ratio = " + (min2 / min));
 			return index;
 		}
 		return -1;
 	}
 
+	// Get Integer Ambiguity Set
 	private double[] getFixedIntAmb(int index, int[] intAmb) {
 		int n = intAmb.length / 2;
 		index += (int) Math.pow(2, n) - 1;
@@ -505,6 +529,7 @@ public class EKF {
 		return fixedIntAmb;
 	}
 
+	// Normalize weight matrix
 	private SimpleMatrix getAmbWeight(SimpleMatrix C) {
 		SimpleMatrix W = C.invert();
 		SimpleMatrix diag = W.diag();
@@ -520,5 +545,9 @@ public class EKF {
 
 	public HashMap<Integer, Double> getIntAmbMap() {
 		return intAmbMap;
+	}
+
+	public ArrayList<double[]> getStateInfo() {
+		return stateInfo;
 	}
 }

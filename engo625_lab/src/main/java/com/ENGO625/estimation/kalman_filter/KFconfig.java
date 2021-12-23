@@ -18,11 +18,6 @@ public class KFconfig extends KF {
 
 	public void config() {
 
-		/*
-		 * The process noise for position vector will be initialized in ENU frame and
-		 * will then be changed to ECEF frame. Rotation matrix 'R' will be computed to
-		 * perform the coordinate transform.
-		 */
 		int n = getState().getNumElements();
 		double[][] F = new double[n][n];
 		double[][] Q = new double[n][n];
