@@ -16,6 +16,7 @@ public class EKF {
 	private KFconfig kfObj;
 	private double prObsNoiseVar;
 	private HashMap<String, HashMap<String, double[]>> ambInfoMap;
+	private HashMap<Integer, Double> intAmbMap;
 
 	public EKF() {
 		kfObj = new KFconfig();
@@ -34,7 +35,10 @@ public class EKF {
 		 * variance
 		 */
 		IntStream.range(0, 3).forEach(i -> x[i][0] = intialBaseline[i]);
-		IntStream.range(0, 3).forEach(i -> P[i][i] = 4);
+		P[0][0] = 1;
+		P[1][1] = 1;
+		P[2][2] = 2;
+		// IntStream.range(0, 3).forEach(i -> P[i][i] = 4);
 
 		kfObj.setState_ProcessCov(x, P);
 		// Begin iteration or recursion
@@ -42,14 +46,70 @@ public class EKF {
 
 	}
 
+	public ArrayList<double[]> processOnlyPhase(ArrayList<ArrayList<Observation>> baselineObsList,
+			ArrayList<Integer> timeList, double[] intialBaseline, SimpleMatrix R, HashMap<Integer, Double> intAmbMap)
+			throws Exception {
+
+		double[][] x = new double[3][1];
+		double[][] P = new double[3][3];
+		/*
+		 * state XYZ is intialized WLS generated Rx position estimated using first epoch
+		 * data, a-priori estimate error covariance matrix for state XYZ is therefore
+		 * assigned 4 m^2 value. Other state variables are assigned infinite(big)
+		 * variance
+		 */
+		IntStream.range(0, 3).forEach(i -> x[i][0] = intialBaseline[i]);
+		IntStream.range(0, 3).forEach(i -> P[i][i] = 0.1);
+
+		kfObj.setState_ProcessCov(x, P);
+		// Begin iteration or recursion
+		return iterateOnlyPhase(baselineObsList, timeList, R, intAmbMap);
+
+	}
+
+	private ArrayList<double[]> iterateOnlyPhase(ArrayList<ArrayList<Observation>> baselineObsList,
+			ArrayList<Integer> timeList, SimpleMatrix R, HashMap<Integer, Double> intAmbMap) throws Exception {
+		ArrayList<double[]> baselineList = new ArrayList<double[]>();
+
+		int len = timeList.size();
+		for (int i = 0; i < len; i++) {
+			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
+			int n = baselineObsvs.size();
+
+			boolean valid = true;
+			for (int j = 0; j < n; j++) {
+				valid = valid && baselineObsvs.get(j).isPhaseLocked();
+			}
+			if (!valid) {
+				continue;
+			}
+			// Perform Predict and Update
+			runFilterOnlyPhase(baselineObsvs, intAmbMap);
+			// Fetch Posteriori state estimate and estimate error covariance matrix
+			SimpleMatrix x = kfObj.getState();
+			SimpleMatrix P = kfObj.getCovariance();
+			double[] estBaseline = new double[] { x.get(0), x.get(1), x.get(2) };
+			// Add position estimate to the list
+			baselineList.add(estBaseline);
+			/*
+			 * Check whether estimate error covariance matrix is positive semidefinite
+			 * before further proceeding
+			 */
+			if (!MatrixFeatures_DDRM.isPositiveDefinite(P.getMatrix())) {
+
+				throw new Exception("PositiveDefinite test Failed");
+			}
+		}
+
+		return baselineList;
+	}
+
 	private ArrayList<double[]> iterate(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
 			SimpleMatrix R) throws Exception {
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
 		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
 		int len = timeList.size();
-//		ambInfoMap.put("e", new double[len]);
-//		ambInfoMap.put("n", new double[len]);
-//		ambInfoMap.put("u", new double[len]);
+
 		for (int i = 0; i < len; i++) {
 			ArrayList<Observation> baselineObsvs = baselineObsList.get(i);
 			int n = baselineObsvs.size();
@@ -112,11 +172,22 @@ public class EKF {
 
 				throw new Exception("PositiveDefinite test Failed");
 			}
-//			SimpleMatrix enuCov = R.mult(P.extractMatrix(0, 3, 0, 3)).mult(R.transpose());
-//			ambInfoMap.get("e")[i] = Math.sqrt(enuCov.get(0, 0));
-//			ambInfoMap.get("n")[i] = Math.sqrt(enuCov.get(1, 1));
-//			ambInfoMap.get("u")[i] = Math.sqrt(enuCov.get(2, 2));
 
+			if (i == len - 1) {
+				intAmbMap = new HashMap<Integer, Double>();
+				System.out.println("AT t = " + i);
+				for (int j = 0; j < n; j++) {
+					int prn = baselineObsvs.get(j).getPrn();
+					System.out.println(prn + " amb. std dev: " + Math.sqrt(_P.get(j + 3, j + 3)) + "  float ambiguity: "
+							+ _x.get(j + 3));
+					double floatAmb = _x.get(j + 3);
+					double intAmb = Math.round(floatAmb);
+					intAmbMap.put(prn, intAmb);
+					System.out.println(baselineObsvs.get(j).getPrn() + " Fixed Ambiguity: " + intAmb);
+
+				}
+
+			}
 			for (int prn : map.keySet()) {
 				int j = map.get(prn);
 				String PRN = Integer.toString(prn);
@@ -137,7 +208,7 @@ public class EKF {
 
 	private ArrayList<double[]> iterate2(ArrayList<ArrayList<Observation>> baselineObsList, ArrayList<Integer> timeList,
 			SimpleMatrix R) throws Exception {
-		int t_thresh = 1000;
+		int t_thresh = 3300;
 		ArrayList<double[]> baselineList = new ArrayList<double[]>();
 		HashMap<Integer, Integer> map = new HashMap<Integer, Integer>();
 		int len = timeList.size();
@@ -232,9 +303,13 @@ public class EKF {
 					_x = new SimpleMatrix(xFixed.concatRows(ambFixedInt));
 					_P = new SimpleMatrix(3 + n, 3 + n);
 					_P.insertIntoThis(0, 0, CxFixed);
+					System.out.println("\n At t = " + i);
+					IntStream.range(0, n).forEach(j -> System.out
+							.println(baselineObsvs.get(j).getPrn() + " Fixed Ambiguity: " + _fixedIntAmb[j]));
 					isFixed = true;
 
 				}
+
 			}
 			kfObj.setState_ProcessCov(_x, _P);
 			// Perform Predict and Update
@@ -272,6 +347,42 @@ public class EKF {
 		return baselineList;
 	}
 
+	private void runFilterOnlyPhase(ArrayList<Observation> baselineObsvs, HashMap<Integer, Double> intAmbMap) {
+
+		// Satellite count
+		int n = baselineObsvs.size();
+
+		// Assign Q and F matrix
+		kfObj.config();
+		kfObj.predict();
+
+		SimpleMatrix x = kfObj.getState();
+
+		/*
+		 * H is the Jacobian matrix of partial derivat.01 ives Observation StateModel(h)
+		 * of with respect to x
+		 */
+		SimpleMatrix H = new SimpleMatrix(getJacobianOnlyPhase(baselineObsvs));
+		// Measurement vector
+		double[][] z = new double[n][1];
+		for (int i = 0; i < n; i++) {
+			Observation obs = baselineObsvs.get(i);
+			z[i][0] = obs.getPhaseL1() - (wavelengthL1 * intAmbMap.get(obs.getPrn()));
+		}
+		// Estimated Measurement vector
+		SimpleMatrix ze = H.mult(x);
+
+		// Measurement Noise
+		double[][] R = new double[n][n];
+		for (int i = 0; i < n; i++) {
+			R[i][i] = 1e-3;
+
+		}
+		// Perform Update Step
+		kfObj.update(z, R, ze, H);
+
+	}
+
 	private void runFilter(ArrayList<Observation> baselineObsvs) {
 
 		// Satellite count
@@ -299,8 +410,8 @@ public class EKF {
 		// Measurement Noise
 		double[][] R = new double[2 * n][2 * n];
 		for (int i = 0; i < n; i++) {
-			R[i][i] = 10;
-			R[n + i][n + i] = 10e-4;
+			R[i][i] = 1;
+			R[n + i][n + i] = 1e-3;
 		}
 		// Perform Update Step
 		kfObj.update(z, R, ze, H);
@@ -317,6 +428,21 @@ public class EKF {
 			IntStream.range(0, 3).forEach(j -> H[i][j] = -obs.getUnitLOS()[j]);
 			IntStream.range(0, 3).forEach(j -> H[n + i][j] = -obs.getUnitLOS()[j]);
 			H[n + i][3 + i] = wavelengthL1;
+		}
+
+		return H;
+
+	}
+
+	private double[][] getJacobianOnlyPhase(ArrayList<Observation> baselineObsvs) {
+		int n = baselineObsvs.size();
+		double[][] H = new double[n][3];
+
+		for (int _i = 0; _i < n; _i++) {
+			final int i = _i;
+			Observation obs = baselineObsvs.get(i);
+			IntStream.range(0, 3).forEach(j -> H[i][j] = -obs.getUnitLOS()[j]);
+
 		}
 
 		return H;
@@ -390,5 +516,9 @@ public class EKF {
 		W = W.divide(min);
 		return W;
 
+	}
+
+	public HashMap<Integer, Double> getIntAmbMap() {
+		return intAmbMap;
 	}
 }

@@ -37,7 +37,7 @@ public class MainApp {
 
 		try {
 			// Path to store output file
-			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\outputRTKfixed2";
+			String path = "D:\\projects\\eclipse_projects\\UCalgary\\ENGO625\\results\\outputRTKtemp7";
 			File output = new File(path + ".txt");
 			PrintStream stream;
 			stream = new PrintStream(output);
@@ -69,7 +69,7 @@ public class MainApp {
 			 * Estimation option - (1. Satellite Trajectory, 2. Least Squares, 3. WLS, 4.
 			 * Between Receiver Single Difference(BRSD), 5. Combined of option 2,3 and 4)
 			 */
-			int opt = 9;
+			int opt = 8;
 			// Option 1 is to output a json file containing Satellite Coordinates
 			if (opt == 1) {
 				JSONObject json = new JSONObject(satMap);
@@ -275,6 +275,8 @@ public class MainApp {
 			if (opt == 9) {
 				LinearLeastSquare lls = new LinearLeastSquare();
 				double[] estRemEcef = lls.processBRSD(baseObsList.get(0), remObsList.get(0), baseEcef);
+				double[] err = IntStream.range(0, 3).mapToDouble(i -> estRemEcef[i] - remoteEcef[i]).map(i -> i * i)
+						.toArray();
 				SimpleMatrix R = new SimpleMatrix(LatLonUtil.getEcef2EnuRotationMat(remoteEcef));
 				int refPRN = 11;
 				CycleSlipDetection.phaseRateMethod(baseObsList, remObsList);
@@ -336,10 +338,25 @@ public class MainApp {
 					double[] baseline = baselineList.get(i);
 					double[] estEcef = new double[4];
 					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
-					EnuMap.computeIfAbsent("RTK", k -> new ArrayList<double[]>()).add(estimateENU(estEcef, remoteEcef));
+					EnuMap.computeIfAbsent("RTK_float", k -> new ArrayList<double[]>())
+							.add(estimateENU(estEcef, remoteEcef));
 					CxParam Cx = lls.getCxParam();
-					CxMap.computeIfAbsent("RTK", k -> new ArrayList<CxParam>()).add(Cx);
+					CxMap.computeIfAbsent("RTK_float", k -> new ArrayList<CxParam>()).add(Cx);
 				}
+//				HashMap<Integer, Double> intAmbMap = ekf.getIntAmbMap();
+//				// baselineObsList.stream().forEach(i -> i.removeIf(j ->
+//				// (reject.contains(j.getPrn()))));
+//				baselineList = ekf.processOnlyPhase(baselineObsList, timeList,
+//						baselineList.get(baselineList.size() - 1), R, intAmbMap);
+//				for (int i = 0; i < baselineList.size(); i++) {
+//					double[] baseline = baselineList.get(i);
+//					double[] estEcef = new double[4];
+//					IntStream.range(0, 3).forEach(j -> estEcef[j] = baseline[j] + baseEcef[j]);
+//					EnuMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<double[]>())
+//							.add(estimateENU(estEcef, remoteEcef));
+//					CxParam Cx = lls.getCxParam();
+//					CxMap.computeIfAbsent("RTK_fixed", k -> new ArrayList<CxParam>()).add(Cx);
+//				}
 
 			}
 
@@ -380,9 +397,22 @@ public class MainApp {
 				System.out.println(" 2d Error - " + RMS(errList[4]));
 				System.out.println(" Rcvr CLk Off(in m) - " + RMS(errList[5]));
 
+				if (opt == 9) {
+					System.out.println("\n" + key + " Converged Value");
+
+					System.out.println(" E - " + errList[0].get(n - 1));
+					System.out.println(" N - " + errList[1].get(n - 1));
+					System.out.println(" U - " + errList[2].get(n - 1));
+					System.out.println(" 3d Error - " + errList[3].get(n - 1));
+					System.out.println(" 2d Error - " + errList[4].get(n - 1));
+				}
 				// 95th Percentile
 				IntStream.range(0, 6).forEach(i -> Collections.sort(errList[i]));
 				int q95 = (int) (n * 0.95);
+
+				if (opt == 9) {
+
+				}
 
 //				System.out.println("\n" + key + " 95%");
 //
@@ -396,9 +426,9 @@ public class MainApp {
 			}
 
 			// Plot Graphs
-			// GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
-			GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
-			GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
+			GraphPlotter.graphCycleSlip(baseObsList, remObsList, timeList);
+			// GraphPlotter.graphENU(GraphEnuMap, CxMap, timeList);
+			// GraphPlotter.graphRTKcov(rtkAmbMap, timeList);
 //			GraphPlotter.graphSatData(satDataMap, t0);
 //			GraphPlotter.graphDOP(CxMap, satCountList, timeList);
 //			GraphPlotter.graphSatRes(satResMap);
